@@ -80,8 +80,8 @@ class DatabaseSeeder extends Seeder
         $operatorUser->syncRoles(['operator']);
 
         $defaults = [
-            ['group' => 'polling', 'key' => 'polling_enabled', 'value' => '1', 'type' => 'boolean', 'label' => 'Polling Enabled', 'description' => 'Master switch for scheduled SNMP polling.'],
-            ['group' => 'polling', 'key' => 'default_polling_interval', 'value' => '60', 'type' => 'integer', 'label' => 'Default Polling Interval', 'description' => 'Default interval in seconds for new devices.'],
+            ['group' => 'polling', 'key' => 'polling_enabled', 'value' => '1', 'type' => 'boolean', 'label' => 'Polling Enabled', 'description' => 'Master switch. With snmp-agent configured, Laravel only reconciles status; the agent owns SNMP cadence and hot metrics.'],
+            ['group' => 'polling', 'key' => 'default_polling_interval', 'value' => '60', 'type' => 'integer', 'label' => 'Default Polling Interval', 'description' => 'Default seconds for new devices (synced to snmp-agent). Hot samples stay on the agent; Laravel stores status + rollups, not every-minute duplicates.'],
             ['group' => 'snmp', 'key' => 'snmp_timeout', 'value' => '3', 'type' => 'integer', 'label' => 'SNMP Timeout', 'description' => 'Timeout in seconds for SNMP operations.'],
             ['group' => 'snmp', 'key' => 'snmp_retries', 'value' => '1', 'type' => 'integer', 'label' => 'SNMP Retries', 'description' => 'Number of retries for failed SNMP requests.'],
             ['group' => 'alerts', 'key' => 'cpu_threshold', 'value' => '85', 'type' => 'integer', 'label' => 'CPU Threshold (%)', 'description' => 'Raise an alert when CPU exceeds this percent.'],

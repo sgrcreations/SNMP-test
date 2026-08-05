@@ -9,12 +9,19 @@ use Illuminate\Support\Collection;
 use Modules\Alerts\Models\Alert;
 use Modules\Devices\Models\Device;
 use Modules\Metrics\Models\DeviceMetric;
+use Modules\Metrics\Models\DeviceMetricRollup;
 use Modules\Metrics\Models\DeviceStatusEvent;
 use Modules\Metrics\Models\InterfaceMetric;
 use Modules\Metrics\Models\PingSample;
+use Modules\Settings\Services\SnmpAgentClient;
+use Throwable;
 
 class DeviceMonitorService
 {
+    public function __construct(
+        private readonly SnmpAgentClient $agent,
+    ) {}
+
     /**
      * @return array<string, int>
      */
@@ -68,11 +75,83 @@ class DeviceMonitorService
     }
 
     /**
-     * @return array{categories: array<int, string>, cpu: array<int, float|null>, memory: array<int, float|null>, temperature: array<int, float|null>}
+     * Polling profile for UI (interval, source, next due).
+     *
+     * @return array{interval_seconds: int, interval_label: string, source: string, source_label: string, last_polled_at: ?string, next_due_at: ?string, next_due_label: string, live_refresh_seconds: int}
+     */
+    public function pollingProfile(Device $device): array
+    {
+        $seconds = max(30, (int) $device->polling_interval);
+        $viaAgent = $this->agent->configured();
+        $nextDue = $device->last_polled_at
+            ? $device->last_polled_at->copy()->addSeconds($seconds)
+            : null;
+
+        return [
+            'interval_seconds' => $seconds,
+            'interval_label' => $this->humanInterval($seconds),
+            'source' => $viaAgent ? 'snmp-agent' : 'laravel',
+            'source_label' => $viaAgent ? 'snmp-agent (hot metrics)' : 'Laravel (local SNMP)',
+            'last_polled_at' => $device->last_polled_at?->toDateTimeString(),
+            'next_due_at' => $nextDue?->toDateTimeString(),
+            'next_due_label' => $nextDue
+                ? ($nextDue->isPast() ? 'Due now' : 'Next due '.$nextDue->diffForHumans())
+                : 'Not polled yet',
+            'live_refresh_seconds' => max(15, min($seconds, 60)),
+        ];
+    }
+
+    /**
+     * @return array{categories: array<int, string>, cpu: array<int, float|null>, memory: array<int, float|null>, temperature: array<int, float|null>, source: string}
      */
     public function metricSeries(Device $device, string $range = '24h'): array
     {
         $from = $this->rangeStart($range);
+        $useRollups = in_array($range, ['7d', '30d'], true);
+
+        if ($useRollups) {
+            $period = $range === '30d' ? '1h' : '5m';
+            $rollupSeries = $this->rollupMetricSeries($device, $from, $period);
+            if (count($rollupSeries['categories']) > 0) {
+                return $rollupSeries + ['source' => 'rollup'];
+            }
+        }
+
+        if ($this->agent->configured()) {
+            try {
+                $rows = $this->agent->deviceMetrics(
+                    $device,
+                    $from->utc()->toIso8601String(),
+                    now()->utc()->toIso8601String(),
+                    $this->limitForRange($range),
+                );
+
+                // Agent returns newest-first; chart needs chronological order.
+                $rows = array_reverse($rows);
+
+                $categories = [];
+                $cpu = [];
+                $memory = [];
+                $temperature = [];
+                foreach ($rows as $row) {
+                    $at = isset($row['recorded_at']) ? Carbon::parse((string) $row['recorded_at']) : null;
+                    $categories[] = $at ? $at->format($range === '1h' ? 'H:i:s' : 'H:i') : '';
+                    $cpu[] = isset($row['cpu']) ? (float) $row['cpu'] : null;
+                    $memory[] = isset($row['memory']) ? (float) $row['memory'] : null;
+                    $temperature[] = isset($row['temperature']) ? (float) $row['temperature'] : null;
+                }
+
+                return [
+                    'categories' => $categories,
+                    'cpu' => $cpu,
+                    'memory' => $memory,
+                    'temperature' => $temperature,
+                    'source' => 'snmp-agent',
+                ];
+            } catch (Throwable) {
+                // Fall through to Laravel history (legacy / offline agent).
+            }
+        }
 
         $rows = DeviceMetric::query()
             ->where('device_id', $device->id)
@@ -85,6 +164,7 @@ class DeviceMonitorService
             'cpu' => $rows->map(fn (DeviceMetric $m) => $m->cpu)->all(),
             'memory' => $rows->map(fn (DeviceMetric $m) => $m->memory)->all(),
             'temperature' => $rows->map(fn (DeviceMetric $m) => $m->temperature)->all(),
+            'source' => 'laravel',
         ];
     }
 
@@ -138,7 +218,7 @@ class DeviceMonitorService
     }
 
     /**
-     * @return array{categories: array<int, string>, rx_mbps: array<int, float>, tx_mbps: array<int, float>}
+     * @return array{categories: array<int, string>, rx_mbps: array<int, float>, tx_mbps: array<int, float>, mapped?: bool}
      */
     public function uplinkTrafficSeries(Device $device, string $range = '24h'): array
     {
@@ -205,7 +285,6 @@ class DeviceMonitorService
             return $uplinkIds;
         }
 
-        // Fallback: busiest physical up port (so charts work before next poll auto-maps).
         $candidate = $device->interfaces()
             ->where('oper_status', 'up')
             ->where('name', 'not like', '%.%')
@@ -240,6 +319,52 @@ class DeviceMonitorService
             'mapped' => $all->filter(fn (Device $d) => $d->latitude !== null && $d->longitude !== null)->values(),
             'unmapped' => $all->filter(fn (Device $d) => $d->latitude === null || $d->longitude === null)->values(),
         ];
+    }
+
+    /**
+     * @return array{categories: array<int, string>, cpu: array<int, float|null>, memory: array<int, float|null>, temperature: array<int, float|null>}
+     */
+    private function rollupMetricSeries(Device $device, Carbon $from, string $period): array
+    {
+        $rows = DeviceMetricRollup::query()
+            ->where('device_id', $device->id)
+            ->where('period', $period)
+            ->where('bucket_at', '>=', $from)
+            ->orderBy('bucket_at')
+            ->get();
+
+        return [
+            'categories' => $rows->map(fn (DeviceMetricRollup $m) => $m->bucket_at?->format($period === '1h' ? 'm-d H:i' : 'H:i'))->all(),
+            'cpu' => $rows->map(fn (DeviceMetricRollup $m) => $m->cpu_avg)->all(),
+            'memory' => $rows->map(fn (DeviceMetricRollup $m) => $m->memory_avg)->all(),
+            'temperature' => $rows->map(fn (DeviceMetricRollup $m) => $m->temperature_avg)->all(),
+        ];
+    }
+
+    private function humanInterval(int $seconds): string
+    {
+        if ($seconds % 3600 === 0) {
+            $h = intdiv($seconds, 3600);
+
+            return $h === 1 ? 'every 1 hour' : "every {$h} hours";
+        }
+        if ($seconds % 60 === 0) {
+            $m = intdiv($seconds, 60);
+
+            return $m === 1 ? 'every 1 minute' : "every {$m} minutes";
+        }
+
+        return "every {$seconds}s";
+    }
+
+    private function limitForRange(string $range): int
+    {
+        return match ($range) {
+            '1h' => 240,
+            '7d' => 2000,
+            '30d' => 2000,
+            default => 1500,
+        };
     }
 
     private function rangeStart(string $range): Carbon

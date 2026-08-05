@@ -57,6 +57,7 @@ class DeviceMonitorController
             'tab' => $tab,
             'range' => $range,
             'overview' => $this->monitor->overview($device),
+            'pollingProfile' => $this->monitor->pollingProfile($device),
             'metricSeries' => $this->monitor->metricSeries($device, $range),
             'trafficSeries' => $this->monitor->uplinkTrafficSeries($device, $range),
             'qualitySeries' => $this->monitor->qualitySeries($device, $range),
@@ -114,6 +115,12 @@ class DeviceMonitorController
         return response()->json([
             'metrics' => $this->monitor->metricSeries($device, $range),
             'traffic' => $this->monitor->uplinkTrafficSeries($device, $range),
+            'overview' => [
+                'cpu' => $device->fresh()->last_cpu,
+                'memory' => $device->fresh()->last_memory,
+                'temperature' => $device->fresh()->last_temperature,
+            ],
+            'polling' => $this->monitor->pollingProfile($device),
         ]);
     }
 

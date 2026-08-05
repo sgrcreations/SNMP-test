@@ -16,11 +16,13 @@ use Modules\Devices\Models\Device;
 use Modules\Devices\Requests\StoreDeviceRequest;
 use Modules\Devices\Requests\UpdateDeviceRequest;
 use Modules\Devices\Services\DeviceService;
+use Modules\Settings\Services\SettingService;
 
 class DeviceController
 {
     public function __construct(
         private readonly DeviceService $deviceService,
+        private readonly SettingService $settings,
     ) {}
 
     public function index(Request $request): View
@@ -49,7 +51,7 @@ class DeviceController
     {
         abort_unless(auth()->user()?->can('devices.create'), 403);
 
-        return view('devices::create', $this->formOptions());
+        return view('devices::create', $this->formOptions(null));
     }
 
     public function store(StoreDeviceRequest $request): RedirectResponse
@@ -80,7 +82,7 @@ class DeviceController
     {
         abort_unless(auth()->user()?->can('devices.update'), 403);
 
-        return view('devices::edit', array_merge($this->formOptions(), [
+        return view('devices::edit', array_merge($this->formOptions($device), [
             'device' => $device,
         ]));
     }
@@ -121,8 +123,10 @@ class DeviceController
     /**
      * @return array<string, mixed>
      */
-    private function formOptions(): array
+    private function formOptions(?Device $device = null): array
     {
+        $defaultInterval = max(30, (int) $this->settings->get('default_polling_interval', 60));
+
         return [
             'vendors' => DeviceVendor::options(),
             'deviceTypes' => DeviceType::options(),
@@ -130,6 +134,8 @@ class DeviceController
             'authProtocols' => SnmpAuthProtocol::options(),
             'privProtocols' => SnmpPrivProtocol::options(),
             'statuses' => DeviceStatus::options(),
+            'defaultPollingInterval' => $defaultInterval,
+            'device' => $device,
         ];
     }
 }

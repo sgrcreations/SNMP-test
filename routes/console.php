@@ -12,3 +12,8 @@ Schedule::command('devices:poll')
     ->everyMinute()
     ->withoutOverlapping()
     ->runInBackground();
+
+Schedule::command('metrics:rollup')
+    ->hourly()
+    ->withoutOverlapping()
+    ->runInBackground();

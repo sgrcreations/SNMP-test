@@ -195,6 +195,40 @@ class SnmpAgentClient
         $this->request('delete', '/v1/devices/by-external/'.$externalId, expectJson: false);
     }
 
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function listDevices(): array
+    {
+        /** @var array<string, mixed> $payload */
+        $payload = $this->request('get', '/v1/devices');
+        $data = $payload['data'] ?? [];
+
+        return is_array($data) ? array_values(array_filter($data, 'is_array')) : [];
+    }
+
+    /**
+     * Hot metrics from the agent (system of record when agent is configured).
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function deviceMetrics(Device $device, ?string $from = null, ?string $to = null, int $limit = 2000): array
+    {
+        $query = http_build_query(array_filter([
+            'from' => $from,
+            'to' => $to,
+            'limit' => $limit,
+        ], static fn ($v) => $v !== null && $v !== ''));
+
+        $path = '/v1/devices/by-external/'.$device->id.'/metrics'.($query !== '' ? '?'.$query : '');
+
+        /** @var array<string, mixed> $payload */
+        $payload = $this->request('get', $path);
+        $data = $payload['data'] ?? [];
+
+        return is_array($data) ? array_values(array_filter($data, 'is_array')) : [];
+    }
+
     public function configured(): bool
     {
         return filled($this->baseUrl()) && filled($this->apiKey());

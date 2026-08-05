@@ -1,3 +1,13 @@
+@php
+    $profile = $pollingProfile ?? [
+        'interval_seconds' => (int) $device->polling_interval,
+        'interval_label' => 'every '.$device->polling_interval.'s',
+        'source_label' => 'Laravel',
+        'next_due_label' => '—',
+        'last_polled_at' => $device->last_polled_at?->toDateTimeString(),
+    ];
+@endphp
+
 <div class="grid gap-4 xl:grid-cols-3">
     <div class="sgr-card p-4 xl:col-span-2 overflow-hidden">
         <h3 class="mb-3 font-semibold">Recent Poll Runs</h3>
@@ -35,13 +45,38 @@
     <div class="sgr-card p-4">
         <h3 class="font-semibold">Polling Profile</h3>
         <dl class="mt-4 space-y-3 text-sm">
-            <div class="flex justify-between"><dt class="text-slate-400">Interval</dt><dd class="font-semibold">{{ $device->polling_interval }}s</dd></div>
-            <div class="flex justify-between"><dt class="text-slate-400">Last Polled</dt><dd class="font-semibold">{{ $device->last_polled_at?->toDateTimeString() ?: 'Never' }}</dd></div>
-            <div class="flex justify-between"><dt class="text-slate-400">Last Seen</dt><dd class="font-semibold">{{ $device->last_seen_at?->toDateTimeString() ?: 'Never' }}</dd></div>
-            <div class="flex justify-between"><dt class="text-slate-400">Reachability</dt><dd class="font-semibold">{{ $device->reachability?->label() }}</dd></div>
-            <div class="flex justify-between"><dt class="text-slate-400">Success (last 30)</dt><dd class="font-semibold text-emerald-600">{{ $pollLogs->where('success', true)->count() }}</dd></div>
-            <div class="flex justify-between"><dt class="text-slate-400">Failed (last 30)</dt><dd class="font-semibold text-rose-600">{{ $pollLogs->where('success', false)->count() }}</dd></div>
+            <div class="flex justify-between gap-3">
+                <dt class="text-slate-400">Interval</dt>
+                <dd class="text-right font-semibold">{{ $profile['interval_label'] }} <span class="block text-xs font-normal text-slate-400">({{ $profile['interval_seconds'] }}s)</span></dd>
+            </div>
+            <div class="flex justify-between gap-3">
+                <dt class="text-slate-400">Metrics source</dt>
+                <dd class="text-right font-semibold">{{ $profile['source_label'] }}</dd>
+            </div>
+            <div class="flex justify-between gap-3">
+                <dt class="text-slate-400">Last Polled</dt>
+                <dd class="font-semibold">{{ $profile['last_polled_at'] ?: 'Never' }}</dd>
+            </div>
+            <div class="flex justify-between gap-3">
+                <dt class="text-slate-400">Schedule</dt>
+                <dd class="font-semibold">{{ $profile['next_due_label'] }}</dd>
+            </div>
+            <div class="flex justify-between gap-3">
+                <dt class="text-slate-400">Reachability</dt>
+                <dd class="font-semibold">{{ $device->reachability?->label() }}</dd>
+            </div>
+            <div class="flex justify-between gap-3">
+                <dt class="text-slate-400">Success (last 30)</dt>
+                <dd class="font-semibold text-emerald-600">{{ $pollLogs->where('success', true)->count() }}</dd>
+            </div>
+            <div class="flex justify-between gap-3">
+                <dt class="text-slate-400">Failed (last 30)</dt>
+                <dd class="font-semibold text-rose-600">{{ $pollLogs->where('success', false)->count() }}</dd>
+            </div>
         </dl>
+        <p class="mt-4 text-xs leading-relaxed text-slate-500">
+            Hot CPU/memory samples live on the snmp-agent (retained ~48h). Laravel stores status + compact rollups, not every minute duplicate.
+        </p>
         <form method="POST" action="{{ route('devices.poll', $device) }}" class="mt-5">
             @csrf
             <button class="sgr-btn-primary w-full">Run Sync Now</button>

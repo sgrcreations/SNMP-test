@@ -35,7 +35,7 @@
     title="{{ $device->name }}"
     header="{{ $device->name }}"
     :status="$statusLabel"
-    :meta="($device->manufacturer ?: $device->vendor?->label()).' '.($device->model ?: '').' · '.$device->ip_address.($device->sys_uptime ? ' · Uptime '.$device->sys_uptime : '')"
+    :meta="($device->manufacturer ?: $device->vendor?->label()).' '.($device->model ?: '').' · '.$device->ip_address.' · Polls '.($pollingProfile['interval_label'] ?? ('every '.$device->polling_interval.'s')).($device->sys_uptime ? ' · Uptime '.$device->sys_uptime : '')"
     :breadcrumbs="[
         ['label' => 'Devices', 'url' => route('devices.index')],
         ['label' => $device->name],

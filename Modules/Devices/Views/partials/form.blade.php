@@ -96,7 +96,8 @@
                 </div>
                 <div>
                     <label class="mb-1.5 block text-sm font-semibold text-slate-700">Polling Interval (sec)</label>
-                    <input type="number" name="polling_interval" value="{{ old('polling_interval', $device?->polling_interval ?? 60) }}" required class="sgr-input">
+                    <input type="number" name="polling_interval" min="30" max="86400" value="{{ old('polling_interval', $device?->polling_interval ?? ($defaultPollingInterval ?? 60)) }}" required class="sgr-input">
+                    <p class="mt-1 text-xs text-slate-400">How often snmp-agent polls this device. Hot metrics stay on the agent; Laravel keeps status + rollups.</p>
                 </div>
                 <div>
                     <label class="mb-1.5 block text-sm font-semibold text-slate-700">Status</label>

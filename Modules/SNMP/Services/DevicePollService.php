@@ -71,29 +71,33 @@ class DevicePollService
                 $onuTotal = (int) collect($oltData['pon_ports'])->sum('onu_total');
             }
 
-            DB::transaction(function () use ($device, $snapshot, $startedAt, $detectedType, $oltData, $vlanRows, $pingSample, $onuOnline, $onuTotal): void {
-                DeviceMetric::query()->create([
-                    'device_id' => $device->id,
-                    'cpu' => $snapshot['cpu'],
-                    'memory' => $snapshot['memory'],
-                    'temperature' => $snapshot['temperature'],
-                    'rx_bytes' => $snapshot['rx_bytes'],
-                    'tx_bytes' => $snapshot['tx_bytes'],
-                    'uptime' => $snapshot['uptime'],
-                    'onu_online' => $onuOnline ?: null,
-                    'onu_total' => $onuTotal ?: null,
-                    'recorded_at' => $startedAt,
-                ]);
+            // When the on-prem agent owns hot metrics, Laravel only updates status +
+            // interface inventory — not duplicate per-minute time-series rows.
+            DB::transaction(function () use ($device, $snapshot, $startedAt, $detectedType, $oltData, $vlanRows, $pingSample, $onuOnline, $onuTotal, $viaAgent): void {
+                if (! $viaAgent) {
+                    DeviceMetric::query()->create([
+                        'device_id' => $device->id,
+                        'cpu' => $snapshot['cpu'],
+                        'memory' => $snapshot['memory'],
+                        'temperature' => $snapshot['temperature'],
+                        'rx_bytes' => $snapshot['rx_bytes'],
+                        'tx_bytes' => $snapshot['tx_bytes'],
+                        'uptime' => $snapshot['uptime'],
+                        'onu_online' => $onuOnline ?: null,
+                        'onu_total' => $onuTotal ?: null,
+                        'recorded_at' => $startedAt,
+                    ]);
 
-                PingSample::query()->create([
-                    'device_id' => $device->id,
-                    'latency_ms' => $pingSample['latency_ms'],
-                    'jitter_ms' => $pingSample['jitter_ms'],
-                    'packet_loss_pct' => $pingSample['packet_loss_pct'],
-                    'packets_sent' => $pingSample['packets_sent'],
-                    'packets_received' => $pingSample['packets_received'],
-                    'recorded_at' => $startedAt,
-                ]);
+                    PingSample::query()->create([
+                        'device_id' => $device->id,
+                        'latency_ms' => $pingSample['latency_ms'],
+                        'jitter_ms' => $pingSample['jitter_ms'],
+                        'packet_loss_pct' => $pingSample['packet_loss_pct'],
+                        'packets_sent' => $pingSample['packets_sent'],
+                        'packets_received' => $pingSample['packets_received'],
+                        'recorded_at' => $startedAt,
+                    ]);
+                }
 
                 foreach ($snapshot['interfaces'] as $row) {
                     $existing = DeviceInterface::query()
@@ -132,15 +136,17 @@ class DevicePollService
                         ]
                     );
 
-                    InterfaceMetric::query()->create([
-                        'device_id' => $device->id,
-                        'device_interface_id' => $interface->id,
-                        'rx_bytes' => $row['rx_bytes'],
-                        'tx_bytes' => $row['tx_bytes'],
-                        'errors' => $row['errors'],
-                        'utilization' => $rates['utilization'],
-                        'recorded_at' => $startedAt,
-                    ]);
+                    if (! $viaAgent) {
+                        InterfaceMetric::query()->create([
+                            'device_id' => $device->id,
+                            'device_interface_id' => $interface->id,
+                            'rx_bytes' => $row['rx_bytes'],
+                            'tx_bytes' => $row['tx_bytes'],
+                            'errors' => $row['errors'],
+                            'utilization' => $rates['utilization'],
+                            'recorded_at' => $startedAt,
+                        ]);
+                    }
                 }
 
                 $this->syncOnus($device, $oltData['onus'], $startedAt);
@@ -228,20 +234,22 @@ class DevicePollService
                 'error' => $e->getMessage(),
             ]);
 
-            // Still capture ping even when SNMP fails — useful for Network Quality.
-            try {
-                $pingSample = $pingSample ?? $this->ping->probe($device);
-                PingSample::query()->create([
-                    'device_id' => $device->id,
-                    'latency_ms' => $pingSample['latency_ms'],
-                    'jitter_ms' => $pingSample['jitter_ms'],
-                    'packet_loss_pct' => $pingSample['packet_loss_pct'],
-                    'packets_sent' => $pingSample['packets_sent'],
-                    'packets_received' => $pingSample['packets_received'],
-                    'recorded_at' => $startedAt,
-                ]);
-            } catch (Throwable) {
-                // ignore ping failures inside error path
+            // Local installs: still capture ping when SNMP fails. Agent mode keeps samples on-agent only.
+            if (! $viaAgent) {
+                try {
+                    $pingSample = $pingSample ?? $this->ping->probe($device);
+                    PingSample::query()->create([
+                        'device_id' => $device->id,
+                        'latency_ms' => $pingSample['latency_ms'],
+                        'jitter_ms' => $pingSample['jitter_ms'],
+                        'packet_loss_pct' => $pingSample['packet_loss_pct'],
+                        'packets_sent' => $pingSample['packets_sent'],
+                        'packets_received' => $pingSample['packets_received'],
+                        'recorded_at' => $startedAt,
+                    ]);
+                } catch (Throwable) {
+                    // ignore ping failures inside error path
+                }
             }
 
             $device->forceFill([
