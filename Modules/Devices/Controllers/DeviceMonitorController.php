@@ -57,6 +57,7 @@ class DeviceMonitorController
             'tab' => $tab,
             'range' => $range,
             'overview' => $this->monitor->overview($device),
+            'fabric' => $this->monitor->fabricSnapshot($device),
             'pollingProfile' => $this->monitor->pollingProfile($device),
             'metricSeries' => $this->monitor->metricSeries($device, $range),
             'trafficSeries' => $this->monitor->uplinkTrafficSeries($device, $range),
@@ -112,16 +113,28 @@ class DeviceMonitorController
 
         $range = $request->string('range', '24h')->toString();
 
+        $device->load(['interfaces' => fn ($q) => $q->orderBy('if_index')]);
+        $fresh = $device->fresh(['interfaces']);
+
         return response()->json([
             'metrics' => $this->monitor->metricSeries($device, $range),
             'traffic' => $this->monitor->uplinkTrafficSeries($device, $range),
-            'overview' => [
-                'cpu' => $device->fresh()->last_cpu,
-                'memory' => $device->fresh()->last_memory,
-                'temperature' => $device->fresh()->last_temperature,
-            ],
+            'fabric' => $this->monitor->fabricSnapshot($fresh ?? $device),
+            'overview' => $this->monitor->overview($fresh ?? $device),
             'polling' => $this->monitor->pollingProfile($device),
         ]);
+    }
+
+    public function interfaceMetrics(Request $request, Device $device, int $interface): JsonResponse
+    {
+        abort_unless($request->user()?->can('devices.view'), 403);
+
+        $device->interfaces()->whereKey($interface)->firstOrFail();
+        $range = $request->string('range', '24h')->toString();
+
+        return response()->json(
+            $this->monitor->interfaceTrafficSeries($device, $interface, $range)
+        );
     }
 
     public function toggleUplink(Request $request, Device $device, int $interface): RedirectResponse

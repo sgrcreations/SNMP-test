@@ -53,6 +53,7 @@ class DeviceMonitorService
         return [
             'interfaces_total' => $interfaces->count(),
             'interfaces_up' => $up,
+            'interfaces_down' => $interfaces->where('oper_status', 'down')->count(),
             'port_usage' => $interfaces->count() > 0 ? round(($up / $interfaces->count()) * 100, 1) : 0,
             'vlans_total' => $vlans->count(),
             'vlans_active' => $vlans->where('status', 'active')->count(),
@@ -68,9 +69,125 @@ class DeviceMonitorService
             'onu_total' => $onus->count(),
             'uplinks_up' => $interfaces->where('is_uplink', true)->where('oper_status', 'up')->count(),
             'uplinks_total' => $interfaces->where('is_uplink', true)->count(),
+            'errors_total' => (int) $interfaces->sum('errors'),
             'latency_ms' => $latestPing?->latency_ms,
             'jitter_ms' => $latestPing?->jitter_ms,
             'packet_loss_pct' => $latestPing?->packet_loss_pct,
+        ];
+    }
+
+    /**
+     * Live switch/router fabric snapshot for Overview charts (no CPU/mem).
+     *
+     * @return array{
+     *   status: array{up: int, down: int, other: int},
+     *   top_util: list<array{name: string, utilization: float|null, oper_status: string, id: int}>,
+     *   top_errors: list<array{name: string, errors: int, oper_status: string, id: int}>
+     * }
+     */
+    public function fabricSnapshot(Device $device): array
+    {
+        $interfaces = $device->relationLoaded('interfaces')
+            ? $device->interfaces
+            : $device->interfaces()->orderBy('if_index')->get();
+
+        $physical = $interfaces->filter(function ($iface) {
+            $n = strtolower((string) $iface->name);
+
+            return ! str_contains($n, 'null')
+                && ! str_contains($n, 'loop')
+                && ! str_contains($n, 'inloop');
+        });
+
+        $up = $physical->where('oper_status', 'up')->count();
+        $down = $physical->where('oper_status', 'down')->count();
+
+        return [
+            'status' => [
+                'up' => $up,
+                'down' => $down,
+                'other' => max(0, $physical->count() - $up - $down),
+            ],
+            'top_util' => $physical
+                ->filter(fn ($i) => $i->utilization !== null)
+                ->sortByDesc('utilization')
+                ->take(8)
+                ->values()
+                ->map(fn ($i) => [
+                    'id' => $i->id,
+                    'name' => $i->name,
+                    'utilization' => $i->utilization,
+                    'oper_status' => $i->oper_status,
+                ])->all(),
+            'top_errors' => $physical
+                ->filter(fn ($i) => (int) $i->errors > 0)
+                ->sortByDesc('errors')
+                ->take(8)
+                ->values()
+                ->map(fn ($i) => [
+                    'id' => $i->id,
+                    'name' => $i->name,
+                    'errors' => (int) $i->errors,
+                    'oper_status' => $i->oper_status,
+                ])->all(),
+        ];
+    }
+
+    /**
+     * Mbps / errors time series for one interface (popup chart).
+     *
+     * @return array{categories: array<int, string>, rx_mbps: array<int, float>, tx_mbps: array<int, float>, errors: array<int, int>, util: array<int, float|null>}
+     */
+    public function interfaceTrafficSeries(Device $device, int $interfaceId, string $range = '24h'): array
+    {
+        $from = $this->rangeStart($range);
+        $iface = $device->interfaces()->whereKey($interfaceId)->first();
+        if (! $iface) {
+            return ['categories' => [], 'rx_mbps' => [], 'tx_mbps' => [], 'errors' => [], 'util' => []];
+        }
+
+        $rows = InterfaceMetric::query()
+            ->where('device_interface_id', $interfaceId)
+            ->where('recorded_at', '>=', $from)
+            ->orderBy('recorded_at')
+            ->get();
+
+        $categories = [];
+        $rx = [];
+        $tx = [];
+        $errors = [];
+        $util = [];
+        $prevRx = null;
+        $prevTx = null;
+        $prevAt = null;
+
+        foreach ($rows as $row) {
+            $at = $row->recorded_at;
+            if ($prevAt && $prevRx !== null) {
+                $seconds = max(1, $prevAt->diffInSeconds($at));
+                $categories[] = $at?->format('H:i') ?? '';
+                $rx[] = round((((max(0, (float) $row->rx_bytes - $prevRx)) * 8) / $seconds) / 1_000_000, 3);
+                $tx[] = round((((max(0, (float) $row->tx_bytes - $prevTx)) * 8) / $seconds) / 1_000_000, 3);
+                $errors[] = (int) $row->errors;
+                $util[] = $row->utilization;
+            }
+            $prevRx = (float) $row->rx_bytes;
+            $prevTx = (float) $row->tx_bytes;
+            $prevAt = $at;
+        }
+
+        return [
+            'categories' => $categories,
+            'rx_mbps' => $rx,
+            'tx_mbps' => $tx,
+            'errors' => $errors,
+            'util' => $util,
+            'interface' => [
+                'id' => $iface->id,
+                'name' => $iface->name,
+                'rx_bps' => $iface->rx_bps,
+                'tx_bps' => $iface->tx_bps,
+            ],
         ];
     }
 

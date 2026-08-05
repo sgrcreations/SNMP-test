@@ -118,7 +118,7 @@ class DashboardService
                 'utilization' => $iface->utilization,
                 'device_id' => $iface->device_id,
             ];
-        })->values();
+        })->sortByDesc('bps')->values();
 
         $lastPoll = Device::query()->max('last_polled_at');
         $total = (int) ($deviceStats['total'] ?? 0);
@@ -153,7 +153,8 @@ class DashboardService
                 'onu_critical_optical' => $onuCriticalOptical,
                 'last_poll' => $lastPoll ? Carbon::parse($lastPoll)->diffForHumans() : null,
             ],
-            'provider_split' => $providerSplit,
+            'provider_split' => $providerSplit->take(5)->values(),
+            'provider_split_total' => $providerSplit->count(),
             'type_breakdown' => $typeBreakdown,
             'hot_devices' => $hotDevices,
             'hot_ports' => $hotPorts,

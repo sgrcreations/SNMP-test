@@ -123,7 +123,12 @@
             </div>
 
             <div class="xl:col-span-3">
-                <div class="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-slate-400">Uplink split</div>
+                <div class="mb-2 flex items-center justify-between gap-2">
+                    <div class="text-xs font-bold uppercase tracking-[0.12em] text-slate-400">Uplink split</div>
+                    @if(($provider_split_total ?? 0) > 0)
+                        <a href="{{ route('interfaces.index', ['uplink' => 1]) }}" class="text-xs font-semibold text-cyan-700 hover:underline">View all ({{ $provider_split_total }})</a>
+                    @endif
+                </div>
                 <div class="space-y-3">
                     @forelse($provider_split as $row)
                         <div>
@@ -154,7 +159,10 @@
         <div class="sgr-card p-5">
             <div class="mb-3 flex items-center justify-between">
                 <h2 class="font-semibold text-slate-900">Operational Attention</h2>
-                <span class="text-xs text-slate-400">Live</span>
+                <div class="flex items-center gap-2">
+                    <span class="text-xs text-slate-400">Live</span>
+                    <a href="{{ route('alerts.index', ['status' => 'open']) }}" class="text-xs font-semibold text-cyan-700 hover:underline">View all</a>
+                </div>
             </div>
             <div class="grid grid-cols-2 gap-2 text-center text-sm">
                 <div class="rounded-xl bg-rose-50 p-3">
@@ -188,11 +196,14 @@
 
         {{-- Availability by type --}}
         <div class="sgr-card p-5">
-            <h2 class="font-semibold text-slate-900">Device Availability</h2>
+            <div class="mb-3 flex items-center justify-between gap-2">
+                <h2 class="font-semibold text-slate-900">Device Availability</h2>
+                <a href="{{ route('devices.index') }}" class="text-xs font-semibold text-cyan-700 hover:underline">View all</a>
+            </div>
             <div class="mt-4 space-y-4">
-                @forelse($type_breakdown as $row)
+                @forelse($type_breakdown as $type => $row)
                     @php $pct = $row['total'] > 0 ? round(($row['online'] / $row['total']) * 100) : 0; @endphp
-                    <div>
+                    <a href="{{ route('devices.index', ['device_type' => $type]) }}" class="block rounded-xl transition hover:bg-slate-50">
                         <div class="mb-1 flex justify-between text-sm">
                             <span class="font-semibold text-slate-700">{{ $row['label'] }}</span>
                             <span class="font-bold text-emerald-700">{{ $row['online'] }} / {{ $row['total'] }}</span>
@@ -200,7 +211,7 @@
                         <div class="h-2 overflow-hidden rounded-full bg-slate-100">
                             <div class="h-full rounded-full bg-emerald-500" style="width: {{ $pct }}%"></div>
                         </div>
-                    </div>
+                    </a>
                 @empty
                     <p class="text-sm text-slate-400">Add devices to see type availability.</p>
                 @endforelse

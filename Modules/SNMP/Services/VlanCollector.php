@@ -103,6 +103,65 @@ class VlanCollector
     }
 
     /**
+     * Collect VLANs from supplied MIB/IF rows only (no live SNMP). Used when agent returns VLAN data
+     * or when deriving from IF names without walking Q-BRIDGE from the web host.
+     *
+     * @param  array<int, array{vlan_id: int, name?: ?string, status?: string, member_ports?: int}>  $seed
+     * @param  array<int, array<string, mixed>>  $interfaces
+     * @return array<int, array{vlan_id: int, name: ?string, status: string, member_ports: int}>
+     */
+    public function mergeRows(array $seed, array $interfaces = []): array
+    {
+        $vlans = [];
+        foreach ($seed as $row) {
+            $vlanId = (int) ($row['vlan_id'] ?? 0);
+            if ($vlanId < 1 || $vlanId > 4094) {
+                continue;
+            }
+            $vlans[$vlanId] = [
+                'vlan_id' => $vlanId,
+                'name' => isset($row['name']) ? (string) $row['name'] : ('VLAN '.$vlanId),
+                'status' => (string) ($row['status'] ?? 'active'),
+                'member_ports' => (int) ($row['member_ports'] ?? 0),
+            ];
+        }
+
+        $fromIfaces = $this->fromInterfaces($interfaces);
+        foreach ($fromIfaces as $vlanId => $row) {
+            if (! isset($vlans[$vlanId])) {
+                $vlans[$vlanId] = $row;
+                continue;
+            }
+
+            if (empty($vlans[$vlanId]['name']) || str_starts_with((string) $vlans[$vlanId]['name'], 'VLAN ')) {
+                $vlans[$vlanId]['name'] = $row['name'];
+            }
+
+            $vlans[$vlanId]['member_ports'] = max(
+                (int) $vlans[$vlanId]['member_ports'],
+                (int) $row['member_ports']
+            );
+
+            if ($row['status'] === 'active') {
+                $vlans[$vlanId]['status'] = 'active';
+            }
+        }
+
+        ksort($vlans);
+
+        return array_values($vlans);
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $interfaces
+     * @return array<int, array{vlan_id: int, name: ?string, status: string, member_ports: int}>
+     */
+    public function collectFromInterfaces(array $interfaces): array
+    {
+        return $this->mergeRows([], $interfaces);
+    }
+
+    /**
      * @param  array<int, array<string, mixed>>  $interfaces
      * @return array<int, array{vlan_id: int, name: ?string, status: string, member_ports: int}>
      */

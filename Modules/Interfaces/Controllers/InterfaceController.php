@@ -27,6 +27,10 @@ class InterfaceController
             $query->where('oper_status', $status);
         }
 
+        if ($request->boolean('uplink')) {
+            $query->where('is_uplink', true);
+        }
+
         if ($deviceId = $request->integer('device_id')) {
             $query->where('device_id', $deviceId);
         }
@@ -34,7 +38,7 @@ class InterfaceController
         return view('interfaces::index', [
             'interfaces' => $query->paginate(25)->withQueryString(),
             'devices' => Device::query()->orderBy('name')->get(['id', 'name']),
-            'filters' => $request->only(['search', 'status', 'device_id']),
+            'filters' => $request->only(['search', 'status', 'device_id', 'uplink']),
         ]);
     }
 }

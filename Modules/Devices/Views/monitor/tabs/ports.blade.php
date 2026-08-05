@@ -36,12 +36,7 @@
 
 <div
     class="sgr-card overflow-hidden"
-    x-data="{
-        open: false,
-        port: null,
-        show(p) { this.port = p; this.open = true; },
-        close() { this.open = false; }
-    }"
+    x-data="portPanel(@js(url('/devices/'.$device->id.'/interfaces')))"
 >
     <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
         <div>
@@ -160,7 +155,7 @@
         </table>
     </div>
 
-    {{-- Per-port detail popup --}}
+    {{-- Per-port detail popup with traffic graph --}}
     <div
         x-cloak
         x-show="open"
@@ -170,7 +165,7 @@
     >
         <div class="absolute inset-0 bg-slate-900/40" @click="close()"></div>
         <div
-            class="relative w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-5 shadow-xl"
+            class="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-slate-200 bg-white p-5 shadow-xl"
             @keydown.escape.window="close()"
         >
             <div class="mb-4 flex items-start justify-between gap-3">
@@ -182,8 +177,30 @@
                 <button type="button" class="rounded-lg border border-slate-200 px-2 py-1 text-sm text-slate-500 hover:bg-slate-50" @click="close()">Close</button>
             </div>
 
+            <div class="mb-4 rounded-xl border border-slate-100 bg-slate-50/80 p-3">
+                <div class="mb-2 flex items-center justify-between gap-2">
+                    <div class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Traffic history</div>
+                    <div class="flex gap-1">
+                        <template x-for="r in ['6h','24h','7d']" :key="r">
+                            <button
+                                type="button"
+                                class="rounded-lg px-2 py-1 text-[11px] font-bold"
+                                :class="range === r ? 'bg-cyan-50 text-cyan-700' : 'text-slate-400 hover:bg-white'"
+                                @click="setRange(r)"
+                                x-text="r.toUpperCase()"
+                            ></button>
+                        </template>
+                    </div>
+                </div>
+                <div id="portTrafficChart" class="h-56 w-full"></div>
+                <p class="mt-2 text-xs text-slate-400" x-show="chartEmpty" x-cloak>
+                    No samples yet for this range. Sync the device twice (about a minute apart) to build the traffic graph.
+                </p>
+                <p class="mt-2 text-xs text-slate-400" x-show="chartLoading" x-cloak>Loading chart…</p>
+            </div>
+
             <template x-if="port">
-                <dl class="grid grid-cols-2 gap-3 text-sm">
+                <dl class="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
                     <div class="rounded-xl bg-slate-50 p-3">
                         <dt class="text-xs text-slate-400">Status</dt>
                         <dd class="mt-1 font-semibold uppercase" x-text="port.oper_status"></dd>
@@ -191,6 +208,10 @@
                     <div class="rounded-xl bg-slate-50 p-3">
                         <dt class="text-xs text-slate-400">Speed</dt>
                         <dd class="mt-1 font-semibold" x-text="port.speed"></dd>
+                    </div>
+                    <div class="rounded-xl bg-slate-50 p-3">
+                        <dt class="text-xs text-slate-400">Utilization</dt>
+                        <dd class="mt-1 font-semibold" x-text="port.utilization"></dd>
                     </div>
                     <div class="rounded-xl bg-slate-50 p-3">
                         <dt class="text-xs text-slate-400">Traffic IN</dt>
@@ -201,20 +222,16 @@
                         <dd class="mt-1 font-semibold text-emerald-600" x-text="'↑ ' + port.tx_bps"></dd>
                     </div>
                     <div class="rounded-xl bg-slate-50 p-3">
+                        <dt class="text-xs text-slate-400">Errors</dt>
+                        <dd class="mt-1 font-semibold" x-text="port.errors"></dd>
+                    </div>
+                    <div class="rounded-xl bg-slate-50 p-3">
                         <dt class="text-xs text-slate-400">RX total</dt>
                         <dd class="mt-1 font-semibold" x-text="port.rx_bytes"></dd>
                     </div>
                     <div class="rounded-xl bg-slate-50 p-3">
                         <dt class="text-xs text-slate-400">TX total</dt>
                         <dd class="mt-1 font-semibold" x-text="port.tx_bytes"></dd>
-                    </div>
-                    <div class="rounded-xl bg-slate-50 p-3">
-                        <dt class="text-xs text-slate-400">Utilization</dt>
-                        <dd class="mt-1 font-semibold" x-text="port.utilization"></dd>
-                    </div>
-                    <div class="rounded-xl bg-slate-50 p-3">
-                        <dt class="text-xs text-slate-400">Errors</dt>
-                        <dd class="mt-1 font-semibold" x-text="port.errors"></dd>
                     </div>
                     <div class="rounded-xl bg-slate-50 p-3">
                         <dt class="text-xs text-slate-400">RX Power</dt>
@@ -229,14 +246,10 @@
                         <dd class="mt-1 font-semibold" x-text="port.temperature"></dd>
                     </div>
                     <div class="rounded-xl bg-slate-50 p-3">
-                        <dt class="text-xs text-slate-400">Role</dt>
-                        <dd class="mt-1 font-semibold" x-text="port.port_role"></dd>
+                        <dt class="text-xs text-slate-400">Role / Uplink</dt>
+                        <dd class="mt-1 font-semibold" x-text="port.port_role + (port.is_uplink ? ' · uplink' : '')"></dd>
                     </div>
-                    <div class="rounded-xl bg-slate-50 p-3">
-                        <dt class="text-xs text-slate-400">Uplink</dt>
-                        <dd class="mt-1 font-semibold" x-text="port.is_uplink ? 'Yes' : 'No'"></dd>
-                    </div>
-                    <div class="col-span-2 rounded-xl bg-slate-50 p-3">
+                    <div class="col-span-2 rounded-xl bg-slate-50 p-3 sm:col-span-3">
                         <dt class="text-xs text-slate-400">ifIndex · Last polled</dt>
                         <dd class="mt-1 font-semibold" x-text="port.if_index + ' · ' + port.last_polled"></dd>
                     </div>
@@ -250,3 +263,87 @@
         </div>
     </div>
 </div>
+
+@push('scripts')
+<script>
+function portPanel(metricsBase) {
+    return {
+        open: false,
+        port: null,
+        range: '24h',
+        chartLoading: false,
+        chartEmpty: false,
+        chart: null,
+        metricsBase: String(metricsBase || '').replace(/\/$/, ''),
+
+        show(p) {
+            this.port = p;
+            this.open = true;
+            this.range = '24h';
+            this.$nextTick(() => this.loadChart());
+        },
+
+        close() {
+            this.open = false;
+            if (this.chart) {
+                this.chart.destroy();
+                this.chart = null;
+            }
+        },
+
+        setRange(r) {
+            this.range = r;
+            this.loadChart();
+        },
+
+        async loadChart() {
+            if (!this.port?.id || !window.ApexCharts) return;
+            this.chartLoading = true;
+            this.chartEmpty = false;
+            try {
+                const url = `${this.metricsBase}/${this.port.id}/metrics.json?range=${encodeURIComponent(this.range)}`;
+                const res = await fetch(url, {
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    credentials: 'same-origin',
+                });
+                if (!res.ok) throw new Error('metrics failed');
+                const data = await res.json();
+                const cats = data.categories || [];
+                this.chartEmpty = cats.length === 0;
+
+                const options = {
+                    chart: { type: 'area', height: 220, toolbar: { show: false }, animations: { enabled: true } },
+                    stroke: { curve: 'smooth', width: 2 },
+                    colors: ['#2563eb', '#059669'],
+                    series: [
+                        { name: 'RX Mbps', data: data.rx_mbps || [] },
+                        { name: 'TX Mbps', data: data.tx_mbps || [] },
+                    ],
+                    xaxis: { categories: cats, labels: { style: { colors: '#94a3b8', fontSize: '10px' } } },
+                    yaxis: { labels: { style: { colors: '#94a3b8' }, formatter: (v) => Number(v).toFixed(2) } },
+                    dataLabels: { enabled: false },
+                    fill: { type: 'gradient', gradient: { opacityFrom: 0.35, opacityTo: 0.05 } },
+                    grid: { borderColor: '#e2e8f0' },
+                    legend: { position: 'top' },
+                    noData: { text: 'No samples yet' },
+                };
+
+                if (this.chart) {
+                    this.chart.updateOptions({ xaxis: { categories: cats } });
+                    this.chart.updateSeries(options.series);
+                } else {
+                    const el = document.querySelector('#portTrafficChart');
+                    if (!el) return;
+                    this.chart = new ApexCharts(el, options);
+                    await this.chart.render();
+                }
+            } catch (e) {
+                this.chartEmpty = true;
+            } finally {
+                this.chartLoading = false;
+            }
+        },
+    };
+}
+</script>
+@endpush

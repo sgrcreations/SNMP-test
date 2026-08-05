@@ -54,11 +54,16 @@ class DevicePollService
                 $device->vendor?->value
             );
 
-            // OLT / VLAN collectors still use direct PHP SNMP from the web host.
-            // Skip them when polling through the on-prem agent.
+            // OLT collector still uses direct PHP SNMP from the web host.
+            // VLANs: with snmp-agent use agent Q-BRIDGE + IF names; without agent walk Q-BRIDGE locally.
             $oltData = ['pon_ports' => [], 'onus' => []];
             $vlanRows = [];
-            if (! $viaAgent) {
+            if ($viaAgent) {
+                $vlanRows = $this->vlans->mergeRows(
+                    $snapshot['vlans'] ?? [],
+                    $snapshot['interfaces'] ?? []
+                );
+            } else {
                 if ($detectedType === DeviceType::Olt || $device->device_type === DeviceType::Olt) {
                     $oltData = $this->oltCollector->collect($device, $snapshot['interfaces']);
                 }
@@ -71,72 +76,72 @@ class DevicePollService
                 $onuTotal = (int) collect($oltData['pon_ports'])->sum('onu_total');
             }
 
-            // When the on-prem agent owns hot metrics, Laravel only updates status +
-            // interface inventory — not duplicate per-minute time-series rows.
+            // When the on-prem agent owns hot metrics, Laravel skips CPU/mem/ping
+            // time-series but still records interface samples for port/uplink charts.
             DB::transaction(function () use ($device, $snapshot, $startedAt, $detectedType, $oltData, $vlanRows, $pingSample, $onuOnline, $onuTotal, $viaAgent): void {
-                if (! $viaAgent) {
-                    DeviceMetric::query()->create([
-                        'device_id' => $device->id,
-                        'cpu' => $snapshot['cpu'],
-                        'memory' => $snapshot['memory'],
-                        'temperature' => $snapshot['temperature'],
-                        'rx_bytes' => $snapshot['rx_bytes'],
-                        'tx_bytes' => $snapshot['tx_bytes'],
-                        'uptime' => $snapshot['uptime'],
-                        'onu_online' => $onuOnline ?: null,
-                        'onu_total' => $onuTotal ?: null,
-                        'recorded_at' => $startedAt,
-                    ]);
-
-                    PingSample::query()->create([
-                        'device_id' => $device->id,
-                        'latency_ms' => $pingSample['latency_ms'],
-                        'jitter_ms' => $pingSample['jitter_ms'],
-                        'packet_loss_pct' => $pingSample['packet_loss_pct'],
-                        'packets_sent' => $pingSample['packets_sent'],
-                        'packets_received' => $pingSample['packets_received'],
-                        'recorded_at' => $startedAt,
-                    ]);
-                }
-
-                foreach ($snapshot['interfaces'] as $row) {
-                    $existing = DeviceInterface::query()
-                        ->where('device_id', $device->id)
-                        ->where('if_index', $row['if_index'])
-                        ->first();
-
-                    $rates = $this->calculateRates($existing, $row, $startedAt);
-                    $role = $this->classifyPortRole($row['name'], $row['description'] ?? '');
-
-                    /** @var DeviceInterface $interface */
-                    $interface = DeviceInterface::query()->updateOrCreate(
-                        [
-                            'device_id' => $device->id,
-                            'if_index' => $row['if_index'],
-                        ],
-                        [
-                            'name' => $row['name'],
-                            'description' => $row['description'],
-                            'oper_status' => $row['oper_status'],
-                            'speed' => $row['speed'],
-                            'rx_bytes' => $row['rx_bytes'],
-                            'tx_bytes' => $row['tx_bytes'],
-                            'errors' => $row['errors'],
-                            'utilization' => $rates['utilization'],
-                            'rx_bps' => $rates['rx_bps'],
-                            'tx_bps' => $rates['tx_bps'],
-                            'port_role' => $existing?->is_uplink ? 'uplink' : $role,
-                            'is_uplink' => (bool) ($existing?->is_uplink ?? $role === 'uplink'),
-                            'onu_online' => $oltData['pon_ports'][$row['if_index']]['onu_online'] ?? 0,
-                            'onu_total' => $oltData['pon_ports'][$row['if_index']]['onu_total'] ?? 0,
-                            'rx_power_dbm' => $oltData['pon_ports'][$row['if_index']]['rx_power_dbm'] ?? null,
-                            'tx_power_dbm' => $oltData['pon_ports'][$row['if_index']]['tx_power_dbm'] ?? null,
-                            'temperature' => $oltData['pon_ports'][$row['if_index']]['temperature'] ?? null,
-                            'last_polled_at' => $startedAt,
-                        ]
-                    );
-
                     if (! $viaAgent) {
+                        DeviceMetric::query()->create([
+                            'device_id' => $device->id,
+                            'cpu' => $snapshot['cpu'],
+                            'memory' => $snapshot['memory'],
+                            'temperature' => $snapshot['temperature'],
+                            'rx_bytes' => $snapshot['rx_bytes'],
+                            'tx_bytes' => $snapshot['tx_bytes'],
+                            'uptime' => $snapshot['uptime'],
+                            'onu_online' => $onuOnline ?: null,
+                            'onu_total' => $onuTotal ?: null,
+                            'recorded_at' => $startedAt,
+                        ]);
+
+                        PingSample::query()->create([
+                            'device_id' => $device->id,
+                            'latency_ms' => $pingSample['latency_ms'],
+                            'jitter_ms' => $pingSample['jitter_ms'],
+                            'packet_loss_pct' => $pingSample['packet_loss_pct'],
+                            'packets_sent' => $pingSample['packets_sent'],
+                            'packets_received' => $pingSample['packets_received'],
+                            'recorded_at' => $startedAt,
+                        ]);
+                    }
+
+                    // Interface samples stay on Laravel for port/uplink charts (agent still owns CPU/mem hot path).
+                    foreach ($snapshot['interfaces'] as $row) {
+                        $existing = DeviceInterface::query()
+                            ->where('device_id', $device->id)
+                            ->where('if_index', $row['if_index'])
+                            ->first();
+
+                        $rates = $this->calculateRates($existing, $row, $startedAt);
+                        $role = $this->classifyPortRole($row['name'], $row['description'] ?? '');
+
+                        /** @var DeviceInterface $interface */
+                        $interface = DeviceInterface::query()->updateOrCreate(
+                            [
+                                'device_id' => $device->id,
+                                'if_index' => $row['if_index'],
+                            ],
+                            [
+                                'name' => $row['name'],
+                                'description' => $row['description'],
+                                'oper_status' => $row['oper_status'],
+                                'speed' => $row['speed'],
+                                'rx_bytes' => $row['rx_bytes'],
+                                'tx_bytes' => $row['tx_bytes'],
+                                'errors' => $row['errors'],
+                                'utilization' => $rates['utilization'],
+                                'rx_bps' => $rates['rx_bps'],
+                                'tx_bps' => $rates['tx_bps'],
+                                'port_role' => $existing?->is_uplink ? 'uplink' : $role,
+                                'is_uplink' => (bool) ($existing?->is_uplink ?? $role === 'uplink'),
+                                'onu_online' => $oltData['pon_ports'][$row['if_index']]['onu_online'] ?? 0,
+                                'onu_total' => $oltData['pon_ports'][$row['if_index']]['onu_total'] ?? 0,
+                                'rx_power_dbm' => $oltData['pon_ports'][$row['if_index']]['rx_power_dbm'] ?? null,
+                                'tx_power_dbm' => $oltData['pon_ports'][$row['if_index']]['tx_power_dbm'] ?? null,
+                                'temperature' => $oltData['pon_ports'][$row['if_index']]['temperature'] ?? null,
+                                'last_polled_at' => $startedAt,
+                            ]
+                        );
+
                         InterfaceMetric::query()->create([
                             'device_id' => $device->id,
                             'device_interface_id' => $interface->id,
@@ -147,7 +152,6 @@ class DevicePollService
                             'recorded_at' => $startedAt,
                         ]);
                     }
-                }
 
                 $this->syncOnus($device, $oltData['onus'], $startedAt);
                 $this->syncVlans($device, $vlanRows);

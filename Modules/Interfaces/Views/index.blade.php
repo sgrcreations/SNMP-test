@@ -9,7 +9,7 @@
 >
     <div class="sgr-card mb-4 p-4">
         <form method="GET" action="{{ route('interfaces.index') }}" class="grid gap-3 lg:grid-cols-12 lg:items-end">
-            <div class="lg:col-span-4">
+            <div class="lg:col-span-3">
                 <label class="mb-1.5 block text-xs font-semibold text-slate-500">Search</label>
                 <input type="text" name="search" value="{{ $filters['search'] ?? '' }}" class="sgr-input" placeholder="Name, description, status">
             </div>
@@ -31,7 +31,14 @@
                     @endforeach
                 </select>
             </div>
-            <div class="flex gap-2 lg:col-span-3">
+            <div class="lg:col-span-2">
+                <label class="mb-1.5 block text-xs font-semibold text-slate-500">Uplink</label>
+                <select name="uplink" class="sgr-input">
+                    <option value="">All ports</option>
+                    <option value="1" @selected(! empty($filters['uplink']))>Marked uplinks only</option>
+                </select>
+            </div>
+            <div class="flex gap-2 lg:col-span-2">
                 <button class="sgr-btn-primary flex-1">Filter</button>
                 <a href="{{ route('interfaces.index') }}" class="sgr-btn-secondary">Reset</a>
             </div>

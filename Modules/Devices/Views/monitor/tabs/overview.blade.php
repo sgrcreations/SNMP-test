@@ -1,10 +1,11 @@
 @php
+    $fabric = $fabric ?? ['status' => ['up' => 0, 'down' => 0, 'other' => 0], 'top_util' => [], 'top_errors' => []];
     $cards = [
-        ['Interfaces', $overview['interfaces_total'], $overview['interfaces_up'].' online', 'emerald', 'card-if'],
-        ['VLANs', $overview['vlans_total'], $overview['vlans_active'].' active', 'sky', 'card-vlan'],
-        ['CPU Load', ($overview['cpu'] ?? '—').($overview['cpu'] !== null ? '%' : ''), 'System', 'cyan', 'card-cpu'],
-        ['Memory', ($overview['memory'] ?? '—').($overview['memory'] !== null ? '%' : ''), 'RAM', 'violet', 'card-mem'],
-        ['Temperature', ($overview['temperature'] ?? '—').($overview['temperature'] !== null ? '°C' : ''), 'Thermal', 'amber', 'card-temp'],
+        ['Interfaces', $overview['interfaces_total'], ($overview['interfaces_up'] ?? 0).' online', 'emerald', 'card-if'],
+        ['VLANs', $overview['vlans_total'], ($overview['vlans_active'] ?? 0).' active', 'sky', 'card-vlan'],
+        ['Uplinks', ($overview['uplinks_up'] ?? 0).'/'.($overview['uplinks_total'] ?? 0), 'Marked ports', 'cyan', 'card-upl'],
+        ['Errors', number_format((int) ($overview['errors_total'] ?? 0)), 'IF counters', 'amber', 'card-err'],
+        ['Port usage', ($overview['port_usage'] ?? 0).'%', ($overview['interfaces_up'] ?? 0).' links up', 'violet', 'card-port'],
         ['Latency', ($overview['latency_ms'] ?? '—').($overview['latency_ms'] !== null ? ' ms' : ''), 'ICMP', 'rose', 'card-lat'],
     ];
     $profile = $pollingProfile ?? [
@@ -36,30 +37,47 @@
         <div class="sgr-card p-4" id="{{ $id }}">
             <div class="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">{{ $label }}</div>
             <div class="mt-2 text-2xl font-bold text-slate-900 card-value">{{ $value }}</div>
-            <div class="mt-1 text-xs text-slate-400">{{ $sub }}</div>
+            <div class="mt-1 text-xs text-slate-400 card-sub">{{ $sub }}</div>
         </div>
     @endforeach
 </div>
 
 <div class="mb-4 grid gap-4 xl:grid-cols-3">
     <div class="sgr-card p-4 xl:col-span-2">
-        <div class="mb-3 flex items-center justify-between">
-            <h3 class="font-semibold">CPU / Memory / Temperature</h3>
-            <div class="flex gap-1">
-                @foreach(['1h','24h','7d','30d'] as $r)
-                    <a href="{{ route('devices.show', ['device' => $device, 'tab' => 'overview', 'range' => $r]) }}"
-                       class="rounded-lg px-2 py-1 text-[11px] font-bold {{ $range === $r ? 'bg-cyan-50 text-cyan-700' : 'text-slate-400 hover:bg-slate-50' }}">{{ strtoupper($r) }}</a>
-                @endforeach
+        <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div>
+                <h3 class="font-semibold">Port health</h3>
+                <p class="text-xs text-slate-400">Physical fabric status, hottest util, and error leaders</p>
+            </div>
+            <a href="{{ route('devices.show', ['device' => $device, 'tab' => 'ports']) }}" class="text-xs font-semibold text-cyan-700 hover:underline">View all ports →</a>
+        </div>
+        <div class="grid gap-4 lg:grid-cols-3">
+            <div>
+                <div class="mb-1 text-[11px] font-bold uppercase tracking-wide text-slate-400">Port status</div>
+                <div id="portStatusChart" class="h-56"></div>
+            </div>
+            <div class="lg:col-span-2">
+                <div class="mb-1 text-[11px] font-bold uppercase tracking-wide text-slate-400">Top utilization</div>
+                <div id="topUtilChart" class="h-56"></div>
+                @if(count($fabric['top_util'] ?? []) === 0)
+                    <p class="mt-1 text-xs text-slate-400">No utilization samples yet. Sync twice so rates can be calculated.</p>
+                @endif
             </div>
         </div>
-        <div id="metricsChart" class="h-72"></div>
-        <p id="metricsEmpty" class="mt-2 text-sm text-slate-400 {{ count($metricSeries['categories']) === 0 ? '' : 'hidden' }}">
-            No metric samples yet for this range. Agent polls {{ $profile['interval_label'] }} — keep this page open for live updates, or click Sync.
-        </p>
+        <div class="mt-4 border-t border-slate-100 pt-4">
+            <div class="mb-1 text-[11px] font-bold uppercase tracking-wide text-slate-400">Error leaders</div>
+            <div id="topErrorsChart" class="h-48"></div>
+            @if(count($fabric['top_errors'] ?? []) === 0)
+                <p class="mt-1 text-xs text-slate-400">No non-zero error counters on physical ports.</p>
+            @endif
+        </div>
     </div>
 
     <div class="sgr-card p-4">
-        <h3 class="font-semibold">Hardware Identity</h3>
+        <div class="mb-3 flex items-center justify-between gap-2">
+            <h3 class="font-semibold">Hardware Identity</h3>
+            <a href="{{ route('devices.edit', $device) }}" class="text-xs font-semibold text-cyan-700 hover:underline">View all →</a>
+        </div>
         <dl class="mt-4 space-y-3 text-sm">
             <div class="flex justify-between gap-3"><dt class="text-slate-400">Hostname</dt><dd class="font-semibold">{{ $device->hostname ?: '—' }}</dd></div>
             <div class="flex justify-between gap-3"><dt class="text-slate-400">Manufacturer</dt><dd class="font-semibold">{{ $device->manufacturer ?: $device->vendor?->label() }}</dd></div>
@@ -96,7 +114,7 @@
                     </p>
                 @endif
             </div>
-            <span class="text-[10px] font-bold uppercase text-slate-400">Mbps</span>
+            <a href="{{ route('devices.show', ['device' => $device, 'tab' => 'ports']) }}" class="text-xs font-semibold text-cyan-700 hover:underline">Mark ports →</a>
         </div>
         @if($markedUplinks->isNotEmpty())
             <div class="mb-3 grid grid-cols-3 gap-2 text-center text-xs">
@@ -107,9 +125,9 @@
         @endif
         <div id="trafficChart" class="h-64"></div>
         @if(empty($trafficSeries['mapped']))
-            <p class="mt-2 text-sm text-slate-400">No suitable uplink interface found yet. Mark a port on Switch Ports, then Sync.</p>
+            <p class="mt-2 text-sm text-slate-400">No uplink port is mapped. Open Switch Ports and mark a port as device uplink.</p>
         @elseif(count($trafficSeries['categories']) === 0)
-            <p class="mt-2 text-sm text-slate-400">Live rates above are from the last poll. History needs interface samples (local poll mode) or Sync twice.</p>
+            <p class="mt-2 text-sm text-slate-400">Live rates above are from the last poll. Sync again to build history.</p>
         @endif
     </div>
     <div class="sgr-card p-4">
@@ -137,7 +155,10 @@
 
 <div class="grid gap-4 xl:grid-cols-2">
     <div class="sgr-card p-4">
-        <h3 class="font-semibold">Software & Capacity</h3>
+        <div class="mb-3 flex items-center justify-between gap-2">
+            <h3 class="font-semibold">Software & Capacity</h3>
+            <a href="{{ route('devices.show', ['device' => $device, 'tab' => 'ports']) }}" class="text-xs font-semibold text-cyan-700 hover:underline">View all →</a>
+        </div>
         <dl class="mt-4 grid grid-cols-2 gap-3 text-sm">
             <div class="rounded-xl bg-slate-50 p-3"><dt class="text-xs text-slate-400">Active Ports</dt><dd class="mt-1 text-xl font-bold">{{ $overview['interfaces_up'] }} / {{ $overview['interfaces_total'] }}</dd></div>
             <div class="rounded-xl bg-slate-50 p-3"><dt class="text-xs text-slate-400">Open Alerts</dt><dd class="mt-1 text-xl font-bold">{{ $overview['open_alerts'] }}</dd></div>
@@ -148,12 +169,12 @@
     <div class="sgr-card p-4">
         <h3 class="font-semibold">Port Usage</h3>
         <div class="mt-4 flex items-end gap-4">
-            <div class="text-4xl font-bold text-cyan-700">{{ $overview['port_usage'] }}%</div>
+            <div class="text-4xl font-bold text-cyan-700" id="portUsageBig">{{ $overview['port_usage'] }}%</div>
             <div class="flex-1">
                 <div class="h-3 overflow-hidden rounded-full bg-slate-100">
-                    <div class="h-full rounded-full bg-cyan-500" style="width: {{ min(100, $overview['port_usage']) }}%"></div>
+                    <div id="portUsageBar" class="h-full rounded-full bg-cyan-500" style="width: {{ min(100, $overview['port_usage']) }}%"></div>
                 </div>
-                <p class="mt-2 text-xs text-slate-400">{{ $overview['interfaces_up'] }} links up of {{ $overview['interfaces_total'] }} interfaces</p>
+                <p class="mt-2 text-xs text-slate-400" id="portUsageHint">{{ $overview['interfaces_up'] }} links up of {{ $overview['interfaces_total'] }} interfaces</p>
             </div>
         </div>
     </div>
@@ -167,33 +188,84 @@ document.addEventListener('DOMContentLoaded', () => {
     const refreshMs = {{ (int) ($profile['live_refresh_seconds'] ?? 60) }} * 1000;
     const liveEnabled = @json(($profile['source'] ?? '') === 'snmp-agent');
 
-    let metrics = @json($metricSeries);
+    let fabric = @json($fabric);
     const traffic = @json($trafficSeries);
     const quality = @json($qualitySeries);
-    let metricsChart = null;
 
-    const fmt = (v, suffix) => (v === null || v === undefined || v === '') ? '—' : `${v}${suffix}`;
+    let portStatusChart = null;
+    let topUtilChart = null;
+    let topErrorsChart = null;
+
+    const shortName = (n) => {
+        const s = String(n || '');
+        return s.length > 18 ? s.slice(0, 16) + '…' : s;
+    };
+
+    function renderFabricCharts(data) {
+        if (!window.ApexCharts) return;
+        const status = data.status || { up: 0, down: 0, other: 0 };
+        const utilRows = data.top_util || [];
+        const errRows = data.top_errors || [];
+
+        const statusSeries = [status.up || 0, status.down || 0, status.other || 0];
+        if (!portStatusChart) {
+            portStatusChart = new ApexCharts(document.querySelector('#portStatusChart'), {
+                chart: { type: 'donut', height: 220, toolbar: { show: false } },
+                labels: ['Up', 'Down', 'Other'],
+                colors: ['#059669', '#e11d48', '#94a3b8'],
+                series: statusSeries,
+                legend: { position: 'bottom' },
+                dataLabels: { enabled: false },
+                plotOptions: { pie: { donut: { size: '68%', labels: { show: true, total: { show: true, label: 'Ports' } } } } },
+                noData: { text: 'No ports' },
+            });
+            portStatusChart.render();
+        } else {
+            portStatusChart.updateSeries(statusSeries);
+        }
+
+        const utilCats = utilRows.map((r) => shortName(r.name));
+        const utilData = utilRows.map((r) => Number(r.utilization || 0));
+        if (!topUtilChart) {
+            topUtilChart = new ApexCharts(document.querySelector('#topUtilChart'), {
+                chart: { type: 'bar', height: 220, toolbar: { show: false } },
+                plotOptions: { bar: { horizontal: true, borderRadius: 4, barHeight: '70%' } },
+                colors: ['#0891b2'],
+                series: [{ name: 'Util %', data: utilData }],
+                xaxis: { categories: utilCats, max: 100, labels: { style: { colors: '#94a3b8' } } },
+                dataLabels: { enabled: true, formatter: (v) => `${v}%` },
+                grid: { borderColor: '#e2e8f0' },
+                noData: { text: 'Waiting for util…' },
+            });
+            topUtilChart.render();
+        } else {
+            topUtilChart.updateOptions({ xaxis: { categories: utilCats } });
+            topUtilChart.updateSeries([{ name: 'Util %', data: utilData }]);
+        }
+
+        const errCats = errRows.map((r) => shortName(r.name));
+        const errData = errRows.map((r) => Number(r.errors || 0));
+        if (!topErrorsChart) {
+            topErrorsChart = new ApexCharts(document.querySelector('#topErrorsChart'), {
+                chart: { type: 'bar', height: 180, toolbar: { show: false } },
+                plotOptions: { bar: { borderRadius: 4, columnWidth: '55%' } },
+                colors: ['#f59e0b'],
+                series: [{ name: 'Errors', data: errData }],
+                xaxis: { categories: errCats, labels: { rotate: -35, style: { colors: '#94a3b8', fontSize: '10px' } } },
+                dataLabels: { enabled: false },
+                grid: { borderColor: '#e2e8f0' },
+                noData: { text: 'No error data' },
+            });
+            topErrorsChart.render();
+        } else {
+            topErrorsChart.updateOptions({ xaxis: { categories: errCats } });
+            topErrorsChart.updateSeries([{ name: 'Errors', data: errData }]);
+        }
+    }
+
+    renderFabricCharts(fabric);
 
     if (window.ApexCharts) {
-        metricsChart = new ApexCharts(document.querySelector('#metricsChart'), {
-            chart: { type: 'area', height: 280, toolbar: { show: false }, animations: { enabled: true } },
-            stroke: { curve: 'smooth', width: 2 },
-            dataLabels: { enabled: false },
-            colors: ['#0891b2', '#7c3aed', '#f59e0b'],
-            series: [
-                { name: 'CPU %', data: metrics.cpu || [] },
-                { name: 'Memory %', data: metrics.memory || [] },
-                { name: 'Temp °C', data: metrics.temperature || [] },
-            ],
-            xaxis: { categories: metrics.categories || [], labels: { style: { colors: '#94a3b8' } } },
-            yaxis: { labels: { style: { colors: '#94a3b8' } } },
-            fill: { type: 'gradient', gradient: { opacityFrom: 0.35, opacityTo: 0.05 } },
-            grid: { borderColor: '#e2e8f0' },
-            legend: { position: 'top' },
-            noData: { text: 'Waiting for samples…' },
-        });
-        metricsChart.render();
-
         if (traffic.categories?.length) {
             new ApexCharts(document.querySelector('#trafficChart'), {
                 chart: { type: 'line', height: 250, toolbar: { show: false } },
@@ -227,7 +299,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    async function refreshMetrics() {
+    async function refreshOverview() {
         if (document.hidden || !liveEnabled) return;
         try {
             const res = await fetch(`${metricsUrl}?range=${encodeURIComponent(range)}`, {
@@ -236,32 +308,37 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             if (!res.ok) return;
             const payload = await res.json();
-            metrics = payload.metrics || metrics;
-            if (metricsChart && metrics.categories) {
-                metricsChart.updateOptions({ xaxis: { categories: metrics.categories } });
-                metricsChart.updateSeries([
-                    { name: 'CPU %', data: metrics.cpu || [] },
-                    { name: 'Memory %', data: metrics.memory || [] },
-                    { name: 'Temp °C', data: metrics.temperature || [] },
-                ]);
-                document.getElementById('metricsEmpty')?.classList.toggle('hidden', (metrics.categories || []).length > 0);
+            if (payload.fabric) {
+                fabric = payload.fabric;
+                renderFabricCharts(fabric);
             }
-            if (payload.overview || metrics.cpu) {
-                const last = (arr) => (Array.isArray(arr) && arr.length) ? arr[arr.length - 1] : null;
-                const cpuEl = document.querySelector('#card-cpu .card-value');
-                const memEl = document.querySelector('#card-mem .card-value');
-                const tempEl = document.querySelector('#card-temp .card-value');
-                if (cpuEl) cpuEl.textContent = fmt(last(metrics.cpu) ?? payload.overview?.cpu, '%');
-                if (memEl) memEl.textContent = fmt(last(metrics.memory) ?? payload.overview?.memory, '%');
-                if (tempEl) tempEl.textContent = fmt(last(metrics.temperature) ?? payload.overview?.temperature, '°C');
-            }
+            const ov = payload.overview;
+            if (!ov) return;
+            const setCard = (id, value, sub) => {
+                const el = document.querySelector(`#${id} .card-value`);
+                const subEl = document.querySelector(`#${id} .card-sub`);
+                if (el && value !== undefined && value !== null) el.textContent = value;
+                if (subEl && sub) subEl.textContent = sub;
+            };
+            setCard('card-if', ov.interfaces_total, `${ov.interfaces_up ?? 0} online`);
+            setCard('card-vlan', ov.vlans_total, `${ov.vlans_active ?? 0} active`);
+            setCard('card-upl', `${ov.uplinks_up ?? 0}/${ov.uplinks_total ?? 0}`);
+            setCard('card-err', Number(ov.errors_total || 0).toLocaleString());
+            setCard('card-port', `${ov.port_usage ?? 0}%`, `${ov.interfaces_up ?? 0} links up`);
+            setCard('card-lat', ov.latency_ms != null ? `${ov.latency_ms} ms` : '—');
+            const big = document.getElementById('portUsageBig');
+            const bar = document.getElementById('portUsageBar');
+            const hint = document.getElementById('portUsageHint');
+            if (big) big.textContent = `${ov.port_usage ?? 0}%`;
+            if (bar) bar.style.width = `${Math.min(100, Number(ov.port_usage || 0))}%`;
+            if (hint) hint.textContent = `${ov.interfaces_up ?? 0} links up of ${ov.interfaces_total ?? 0} interfaces`;
         } catch (e) {
             // ignore transient network errors during live refresh
         }
     }
 
     if (liveEnabled) {
-        setInterval(refreshMetrics, refreshMs);
+        setInterval(refreshOverview, refreshMs);
     }
 });
 </script>

@@ -159,7 +159,7 @@
             </div>
         @empty
             <div class="px-5 py-10 text-center text-slate-400">
-                No VLANs discovered yet. Sync this device to pull Q-BRIDGE-MIB / subinterface VLAN tags.
+                No VLANs discovered yet. Sync this device — VLANs come from Q-BRIDGE-MIB (via snmp-agent) and IF names (Vlanif / .tag).
             </div>
         @endforelse
     </div>

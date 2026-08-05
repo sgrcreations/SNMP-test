@@ -124,7 +124,8 @@ class SnmpAgentClient
      *   hostname: ?string,
      *   location: ?string,
      *   description: ?string,
-     *   interfaces: list<array<string, mixed>>
+     *   interfaces: list<array<string, mixed>>,
+     *   vlans?: list<array{vlan_id: int, name?: string, status?: string, member_ports?: int}>
      * }
      */
     public function pollDeviceSnapshot(Device $device): array
@@ -174,6 +175,21 @@ class SnmpAgentClient
             ];
         }
 
+        $vlans = [];
+        if (is_array($polled['vlans'] ?? null)) {
+            foreach ($polled['vlans'] as $row) {
+                if (! is_array($row)) {
+                    continue;
+                }
+                $vlans[] = [
+                    'vlan_id' => (int) ($row['vlan_id'] ?? 0),
+                    'name' => isset($row['name']) ? (string) $row['name'] : null,
+                    'status' => (string) ($row['status'] ?? 'active'),
+                    'member_ports' => (int) ($row['member_ports'] ?? 0),
+                ];
+            }
+        }
+
         $uptime = $agentDevice['sys_uptime'] ?? null;
 
         return [
@@ -187,6 +203,7 @@ class SnmpAgentClient
             'location' => isset($agentDevice['location']) ? (string) $agentDevice['location'] : null,
             'description' => isset($agentDevice['description']) ? (string) $agentDevice['description'] : null,
             'interfaces' => $interfaces,
+            'vlans' => $vlans,
         ];
     }
 

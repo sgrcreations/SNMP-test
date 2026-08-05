@@ -22,6 +22,8 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::post('devices/{device}/test-snmp', [DeviceSnmpController::class, 'test'])->name('devices.test-snmp');
     Route::post('devices/{device}/poll', [DeviceMonitorController::class, 'poll'])->name('devices.poll');
     Route::get('devices/{device}/metrics.json', [DeviceMonitorController::class, 'metrics'])->name('devices.metrics');
+    Route::get('devices/{device}/interfaces/{interface}/metrics.json', [DeviceMonitorController::class, 'interfaceMetrics'])
+        ->name('devices.interfaces.metrics');
     Route::post('devices/{device}/interfaces/{interface}/toggle-uplink', [DeviceMonitorController::class, 'toggleUplink'])
         ->name('devices.interfaces.toggle-uplink');
 });
