@@ -80,6 +80,8 @@ class AgentReleasePublisher
             ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)."\n"
         );
 
+        $this->makeReadableForWebServer($disk->path($relativeDir));
+
         return [
             'version' => $version,
             'channel' => $channel,
@@ -87,6 +89,29 @@ class AgentReleasePublisher
             'binary_url' => $binaryUrl,
             'sha256' => $sha256,
         ];
+    }
+
+    /**
+     * CLI publishes as the deploy user; PHP-FPM often runs as www-data and
+     * cannot read storage/app/private when directories are 0700.
+     */
+    private function makeReadableForWebServer(string $directory): void
+    {
+        @chmod($directory, 0755);
+        foreach (glob($directory.'/*') ?: [] as $file) {
+            @chmod($file, is_dir($file) ? 0755 : 0644);
+        }
+
+        // Walk up to storage/app/private so intermediate dirs are traversable.
+        $cursor = $directory;
+        for ($i = 0; $i < 6; $i++) {
+            $parent = dirname($cursor);
+            if ($parent === $cursor || ! str_contains($parent, DIRECTORY_SEPARATOR.'storage'.DIRECTORY_SEPARATOR.'app')) {
+                break;
+            }
+            @chmod($parent, 0755);
+            $cursor = $parent;
+        }
     }
 
     private function resolvePublicBase(?string $baseUrl): string
