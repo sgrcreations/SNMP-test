@@ -4,13 +4,79 @@
 
 :root {
     --brand: #0891b2;
+    --brand-soft: #ecfeff;
     --brand-dark: #0e7490;
+    --surface: #f4f7fb;
+    --card: #ffffff;
+    --ink: #0f172a;
+    --muted: #64748b;
+    --line: #e8eef5;
 }
 
 body {
     font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+    color: var(--ink);
+    background: var(--surface);
 }
 
 [x-cloak] {
     display: none !important;
+}
+
+@layer components {
+    .sgr-card {
+        @apply rounded-2xl border border-slate-100 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)];
+    }
+
+    .sgr-input {
+        @apply w-full rounded-xl border-slate-200 bg-white text-sm text-slate-800 shadow-sm placeholder:text-slate-400 focus:border-cyan-500 focus:ring-cyan-500;
+    }
+
+    .sgr-btn {
+        @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition;
+    }
+
+    .sgr-btn-primary {
+        @apply sgr-btn bg-cyan-600 text-white hover:bg-cyan-500;
+    }
+
+    .sgr-btn-secondary {
+        @apply sgr-btn border border-slate-200 bg-white text-slate-700 hover:bg-slate-50;
+    }
+
+    .sgr-btn-danger {
+        @apply sgr-btn border border-rose-200 bg-white text-rose-600 hover:bg-rose-50;
+    }
+
+    .sgr-btn-icon {
+        @apply inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 hover:text-slate-800;
+    }
+
+    .sgr-table th {
+        @apply px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400;
+    }
+
+    .sgr-table td {
+        @apply px-4 py-3.5 text-sm text-slate-700;
+    }
+
+    .sgr-nav-link {
+        @apply relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-500 transition hover:bg-slate-50 hover:text-slate-800;
+    }
+
+    .sgr-nav-link-active {
+        @apply bg-cyan-50 font-semibold text-cyan-700 hover:bg-cyan-50 hover:text-cyan-700;
+    }
+
+    .sgr-nav-link-active::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 50%;
+        height: 1.35rem;
+        width: 0.2rem;
+        transform: translateY(-50%);
+        border-radius: 0 9999px 9999px 0;
+        background-color: #06b6d4;
+    }
 }

@@ -1,7 +1,7 @@
 <x-monitor-layout
     title="Settings"
-    header="Platform Settings"
-    subheader="Polling defaults and alert thresholds"
+    header="Settings"
+    subheader="Platform defaults and alert thresholds"
     :breadcrumbs="[
         ['label' => 'Dashboard', 'url' => route('dashboard')],
         ['label' => 'Settings'],
@@ -12,20 +12,25 @@
         @method('PUT')
 
         @foreach($groups as $group => $settings)
-            <section class="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
-                <h2 class="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500">{{ str_replace('_', ' ', $group) }}</h2>
+            <section class="sgr-card p-5">
+                <div class="mb-4 flex items-center justify-between">
+                    <div>
+                        <h2 class="text-sm font-bold uppercase tracking-[0.14em] text-slate-400">{{ str_replace('_', ' ', $group) }}</h2>
+                        <p class="mt-1 text-xs text-slate-400">Configure {{ strtolower(str_replace('_', ' ', $group)) }} options</p>
+                    </div>
+                </div>
                 <div class="grid gap-4 md:grid-cols-2">
                     @foreach($settings as $setting)
-                        <div>
-                            <label class="mb-1 block text-sm font-medium" for="setting-{{ $setting->key }}">
+                        <div class="rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
+                            <label class="mb-1 block text-sm font-semibold text-slate-800" for="setting-{{ $setting->key }}">
                                 {{ $setting->label ?? $setting->key }}
                             </label>
                             @if($setting->description)
-                                <p class="mb-2 text-xs text-slate-500">{{ $setting->description }}</p>
+                                <p class="mb-3 text-xs text-slate-500">{{ $setting->description }}</p>
                             @endif
 
                             @if($setting->type === 'boolean')
-                                <select id="setting-{{ $setting->key }}" name="settings[{{ $setting->key }}]" class="w-full rounded-lg border-slate-300 dark:border-slate-700 dark:bg-slate-950">
+                                <select id="setting-{{ $setting->key }}" name="settings[{{ $setting->key }}]" class="sgr-input">
                                     <option value="1" @selected((string) $setting->typedValue() === '1' || $setting->typedValue() === true)>Enabled</option>
                                     <option value="0" @selected((string) $setting->typedValue() === '0' || $setting->typedValue() === false)>Disabled</option>
                                 </select>
@@ -36,7 +41,7 @@
                                     type="{{ $setting->type === 'integer' ? 'number' : 'text' }}"
                                     value="{{ old('settings.'.$setting->key, $setting->is_encrypted ? '' : $setting->typedValue()) }}"
                                     placeholder="{{ $setting->is_encrypted ? 'Encrypted value set' : '' }}"
-                                    class="w-full rounded-lg border-slate-300 dark:border-slate-700 dark:bg-slate-950"
+                                    class="sgr-input"
                                 >
                             @endif
                         </div>
@@ -46,7 +51,7 @@
         @endforeach
 
         <div class="flex justify-end">
-            <button class="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-500">Save Settings</button>
+            <button class="sgr-btn-primary">Save Settings</button>
         </div>
     </form>
 </x-monitor-layout>

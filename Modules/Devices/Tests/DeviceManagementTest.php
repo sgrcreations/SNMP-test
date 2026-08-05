@@ -44,7 +44,7 @@ class DeviceManagementTest extends TestCase
         $this->actingAs($user)
             ->get(route('devices.index'))
             ->assertOk()
-            ->assertSee('Device Inventory');
+            ->assertSee('Devices');
     }
 
     public function test_admin_can_create_device(): void

@@ -24,6 +24,6 @@ class DashboardTest extends TestCase
         $this->actingAs($user)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Operations Dashboard');
+            ->assertSee('Command Center');
     }
 }

@@ -1,8 +1,9 @@
 # 01 — Project Overview
+admin@snmpmonitor.test / password
 
-## SNMP Monitor
+## SNMP Monitor / SGR SNMP Test Kit
 
-SNMP Monitor is a standalone Laravel application for learning, testing, and validating SNMP integrations before promoting them into a larger ISP platform.
+SNMP Monitor (product codename for SGR SNMP Test Kit) is a standalone Laravel application for learning, testing, and validating SNMP integrations before promoting them into a larger ISP platform.
 
 It is intentionally **not** part of an ISP ERP. The goal is a clean lab/production-grade sandbox for router polling, interface telemetry, historical metrics, alerts, and REST API consumers.
 

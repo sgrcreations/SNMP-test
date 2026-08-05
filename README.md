@@ -1,4 +1,4 @@
-# SNMP Monitor
+# SGR SNMP Test Kit
 
 Standalone SNMP monitoring lab built with Laravel, Blade, Tailwind, and a modular architecture.
 

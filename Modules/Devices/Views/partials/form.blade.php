@@ -16,66 +16,66 @@
     @endif
 
     <div class="grid gap-6 lg:grid-cols-2">
-        <section class="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
-            <h2 class="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500">Identity</h2>
+        <section class="sgr-card p-5">
+            <h2 class="mb-4 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Identity</h2>
             <div class="grid gap-4 sm:grid-cols-2">
                 <div class="sm:col-span-2">
-                    <label class="mb-1 block text-sm font-medium">Name</label>
-                    <input name="name" value="{{ old('name', $device?->name) }}" required class="w-full rounded-lg border-slate-300 dark:border-slate-700 dark:bg-slate-950">
+                    <label class="mb-1.5 block text-sm font-semibold text-slate-700">Name</label>
+                    <input name="name" value="{{ old('name', $device?->name) }}" required class="sgr-input">
                 </div>
                 <div>
-                    <label class="mb-1 block text-sm font-medium">Vendor</label>
-                    <select name="vendor" required class="w-full rounded-lg border-slate-300 dark:border-slate-700 dark:bg-slate-950">
+                    <label class="mb-1.5 block text-sm font-semibold text-slate-700">Vendor</label>
+                    <select name="vendor" required class="sgr-input">
                         @foreach($vendors as $value => $label)
                             <option value="{{ $value }}" @selected(old('vendor', $device?->vendor?->value) === $value)>{{ $label }}</option>
                         @endforeach
                     </select>
                 </div>
                 <div>
-                    <label class="mb-1 block text-sm font-medium">Model</label>
-                    <input name="model" value="{{ old('model', $device?->model) }}" class="w-full rounded-lg border-slate-300 dark:border-slate-700 dark:bg-slate-950">
+                    <label class="mb-1.5 block text-sm font-semibold text-slate-700">Model</label>
+                    <input name="model" value="{{ old('model', $device?->model) }}" class="sgr-input">
                 </div>
                 <div>
-                    <label class="mb-1 block text-sm font-medium">Hostname</label>
-                    <input name="hostname" value="{{ old('hostname', $device?->hostname) }}" class="w-full rounded-lg border-slate-300 dark:border-slate-700 dark:bg-slate-950">
+                    <label class="mb-1.5 block text-sm font-semibold text-slate-700">Hostname</label>
+                    <input name="hostname" value="{{ old('hostname', $device?->hostname) }}" class="sgr-input">
                 </div>
                 <div>
-                    <label class="mb-1 block text-sm font-medium">IP Address</label>
-                    <input name="ip_address" value="{{ old('ip_address', $device?->ip_address) }}" required class="w-full rounded-lg border-slate-300 dark:border-slate-700 dark:bg-slate-950">
+                    <label class="mb-1.5 block text-sm font-semibold text-slate-700">IP Address</label>
+                    <input name="ip_address" value="{{ old('ip_address', $device?->ip_address) }}" required class="sgr-input">
                 </div>
                 <div>
-                    <label class="mb-1 block text-sm font-medium">Port</label>
-                    <input type="number" name="port" value="{{ old('port', $device?->port ?? 161) }}" required class="w-full rounded-lg border-slate-300 dark:border-slate-700 dark:bg-slate-950">
+                    <label class="mb-1.5 block text-sm font-semibold text-slate-700">Port</label>
+                    <input type="number" name="port" value="{{ old('port', $device?->port ?? 161) }}" required class="sgr-input">
                 </div>
                 <div>
-                    <label class="mb-1 block text-sm font-medium">Location</label>
-                    <input name="location" value="{{ old('location', $device?->location) }}" class="w-full rounded-lg border-slate-300 dark:border-slate-700 dark:bg-slate-950">
+                    <label class="mb-1.5 block text-sm font-semibold text-slate-700">Location</label>
+                    <input name="location" value="{{ old('location', $device?->location) }}" class="sgr-input">
                 </div>
                 <div class="sm:col-span-2">
-                    <label class="mb-1 block text-sm font-medium">Description</label>
-                    <textarea name="description" rows="3" class="w-full rounded-lg border-slate-300 dark:border-slate-700 dark:bg-slate-950">{{ old('description', $device?->description) }}</textarea>
+                    <label class="mb-1.5 block text-sm font-semibold text-slate-700">Description</label>
+                    <textarea name="description" rows="3" class="sgr-input">{{ old('description', $device?->description) }}</textarea>
                 </div>
             </div>
         </section>
 
-        <section class="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
-            <h2 class="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500">SNMP Credentials</h2>
+        <section class="sgr-card p-5">
+            <h2 class="mb-4 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">SNMP Credentials</h2>
             <div class="grid gap-4 sm:grid-cols-2">
                 <div>
-                    <label class="mb-1 block text-sm font-medium">SNMP Version</label>
-                    <select name="snmp_version" x-model="snmpVersion" required class="w-full rounded-lg border-slate-300 dark:border-slate-700 dark:bg-slate-950">
+                    <label class="mb-1.5 block text-sm font-semibold text-slate-700">SNMP Version</label>
+                    <select name="snmp_version" x-model="snmpVersion" required class="sgr-input">
                         @foreach($snmpVersions as $value => $label)
                             <option value="{{ $value }}">{{ $label }}</option>
                         @endforeach
                     </select>
                 </div>
                 <div>
-                    <label class="mb-1 block text-sm font-medium">Polling Interval (sec)</label>
-                    <input type="number" name="polling_interval" value="{{ old('polling_interval', $device?->polling_interval ?? 60) }}" required class="w-full rounded-lg border-slate-300 dark:border-slate-700 dark:bg-slate-950">
+                    <label class="mb-1.5 block text-sm font-semibold text-slate-700">Polling Interval (sec)</label>
+                    <input type="number" name="polling_interval" value="{{ old('polling_interval', $device?->polling_interval ?? 60) }}" required class="sgr-input">
                 </div>
                 <div>
-                    <label class="mb-1 block text-sm font-medium">Status</label>
-                    <select name="status" required class="w-full rounded-lg border-slate-300 dark:border-slate-700 dark:bg-slate-950">
+                    <label class="mb-1.5 block text-sm font-semibold text-slate-700">Status</label>
+                    <select name="status" required class="sgr-input">
                         @foreach($statuses as $value => $label)
                             <option value="{{ $value }}" @selected(old('status', $device?->status?->value ?? 'active') === $value)>{{ $label }}</option>
                         @endforeach
@@ -83,39 +83,39 @@
                 </div>
 
                 <div class="sm:col-span-2" x-show="snmpVersion === 'v2c'">
-                    <label class="mb-1 block text-sm font-medium">Community</label>
-                    <input type="password" name="community" value="{{ old('community') }}" placeholder="{{ $device ? 'Leave blank to keep existing' : 'public' }}" class="w-full rounded-lg border-slate-300 dark:border-slate-700 dark:bg-slate-950" autocomplete="off">
+                    <label class="mb-1.5 block text-sm font-semibold text-slate-700">Community</label>
+                    <input type="password" name="community" value="{{ old('community') }}" placeholder="{{ $device ? 'Leave blank to keep existing' : 'public' }}" class="sgr-input" autocomplete="off">
                 </div>
 
                 <template x-if="snmpVersion === 'v3'">
                     <div class="sm:col-span-2 grid gap-4 sm:grid-cols-2">
                         <div class="sm:col-span-2">
-                            <label class="mb-1 block text-sm font-medium">Username</label>
-                            <input name="username" value="{{ old('username', $device?->username) }}" class="w-full rounded-lg border-slate-300 dark:border-slate-700 dark:bg-slate-950">
+                            <label class="mb-1.5 block text-sm font-semibold text-slate-700">Username</label>
+                            <input name="username" value="{{ old('username', $device?->username) }}" class="sgr-input">
                         </div>
                         <div>
-                            <label class="mb-1 block text-sm font-medium">Auth Protocol</label>
-                            <select name="auth_protocol" class="w-full rounded-lg border-slate-300 dark:border-slate-700 dark:bg-slate-950">
+                            <label class="mb-1.5 block text-sm font-semibold text-slate-700">Auth Protocol</label>
+                            <select name="auth_protocol" class="sgr-input">
                                 @foreach($authProtocols as $value => $label)
                                     <option value="{{ $value }}" @selected(old('auth_protocol', $device?->auth_protocol?->value) === $value)>{{ $label }}</option>
                                 @endforeach
                             </select>
                         </div>
                         <div>
-                            <label class="mb-1 block text-sm font-medium">Auth Password</label>
-                            <input type="password" name="auth_password" value="{{ old('auth_password') }}" placeholder="{{ $device ? 'Leave blank to keep existing' : '' }}" class="w-full rounded-lg border-slate-300 dark:border-slate-700 dark:bg-slate-950" autocomplete="new-password">
+                            <label class="mb-1.5 block text-sm font-semibold text-slate-700">Auth Password</label>
+                            <input type="password" name="auth_password" value="{{ old('auth_password') }}" placeholder="{{ $device ? 'Leave blank to keep existing' : '' }}" class="sgr-input" autocomplete="new-password">
                         </div>
                         <div>
-                            <label class="mb-1 block text-sm font-medium">Privacy Protocol</label>
-                            <select name="priv_protocol" class="w-full rounded-lg border-slate-300 dark:border-slate-700 dark:bg-slate-950">
+                            <label class="mb-1.5 block text-sm font-semibold text-slate-700">Privacy Protocol</label>
+                            <select name="priv_protocol" class="sgr-input">
                                 @foreach($privProtocols as $value => $label)
                                     <option value="{{ $value }}" @selected(old('priv_protocol', $device?->priv_protocol?->value) === $value)>{{ $label }}</option>
                                 @endforeach
                             </select>
                         </div>
                         <div>
-                            <label class="mb-1 block text-sm font-medium">Privacy Password</label>
-                            <input type="password" name="priv_password" value="{{ old('priv_password') }}" placeholder="{{ $device ? 'Leave blank to keep existing' : '' }}" class="w-full rounded-lg border-slate-300 dark:border-slate-700 dark:bg-slate-950" autocomplete="new-password">
+                            <label class="mb-1.5 block text-sm font-semibold text-slate-700">Privacy Password</label>
+                            <input type="password" name="priv_password" value="{{ old('priv_password') }}" placeholder="{{ $device ? 'Leave blank to keep existing' : '' }}" class="sgr-input" autocomplete="new-password">
                         </div>
                     </div>
                 </template>
@@ -124,8 +124,8 @@
     </div>
 
     <div class="flex items-center justify-end gap-3">
-        <a href="{{ $device ? route('devices.show', $device) : route('devices.index') }}" class="rounded-lg border border-slate-300 px-4 py-2 text-sm dark:border-slate-700">Cancel</a>
-        <button class="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-500">
+        <a href="{{ $device ? route('devices.show', $device) : route('devices.index') }}" class="sgr-btn-secondary">Cancel</a>
+        <button class="sgr-btn-primary">
             {{ $device ? 'Update Device' : 'Create Device' }}
         </button>
     </div>
