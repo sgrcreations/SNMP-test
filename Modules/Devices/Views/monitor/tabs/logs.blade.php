@@ -27,7 +27,7 @@
                     @if($event->message)
                         <p class="mt-1 text-sm text-slate-500">{{ $event->message }}</p>
                     @endif
-                    <div class="mt-1 text-xs text-slate-400">{{ $event->occurred_at?->toDateTimeString() }} · {{ $event->occurred_at?->diffForHumans() }}</div>
+                    <div class="mt-1 text-xs text-slate-400">{{ app_time($event->occurred_at) }} · {{ $event->occurred_at?->diffForHumans() }}</div>
                 </div>
             </div>
         @empty

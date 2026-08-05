@@ -4,7 +4,7 @@
         'interval_label' => 'every '.$device->polling_interval.'s',
         'source_label' => 'Laravel',
         'next_due_label' => '—',
-        'last_polled_at' => $device->last_polled_at?->toDateTimeString(),
+        'last_polled_at' => $device->last_polled_at ? app_time($device->last_polled_at) : null,
     ];
 @endphp
 
@@ -25,7 +25,7 @@
                 <tbody class="divide-y divide-slate-100">
                 @forelse($pollLogs as $log)
                     <tr>
-                        <td>{{ $log->started_at?->format('Y-m-d H:i:s') }}</td>
+                        <td>{{ app_time($log->started_at, \App\Support\AppTime::DATETIME_SEC) }}</td>
                         <td>
                             <span class="rounded-full px-2 py-1 text-[11px] font-bold uppercase {{ $log->success ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700' }}">
                                 {{ $log->success ? 'OK' : 'FAIL' }}

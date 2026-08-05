@@ -4,6 +4,7 @@ namespace Modules\Devices\Services;
 
 use App\Core\Enums\DeviceStatus;
 use App\Core\Enums\DeviceType;
+use App\Support\AppTime;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Modules\Alerts\Models\Alert;
@@ -165,7 +166,7 @@ class DeviceMonitorService
             $at = $row->recorded_at;
             if ($prevAt && $prevRx !== null) {
                 $seconds = max(1, $prevAt->diffInSeconds($at));
-                $categories[] = $at?->format('H:i') ?? '';
+                $categories[] = $at ? AppTime::chartLabel($at) : '';
                 $rx[] = round((((max(0, (float) $row->rx_bytes - $prevRx)) * 8) / $seconds) / 1_000_000, 3);
                 $tx[] = round((((max(0, (float) $row->tx_bytes - $prevTx)) * 8) / $seconds) / 1_000_000, 3);
                 $errors[] = (int) $row->errors;
@@ -209,8 +210,8 @@ class DeviceMonitorService
             'interval_label' => $this->humanInterval($seconds),
             'source' => $viaAgent ? 'snmp-agent' : 'laravel',
             'source_label' => $viaAgent ? 'snmp-agent (hot metrics)' : 'Laravel (local SNMP)',
-            'last_polled_at' => $device->last_polled_at?->toDateTimeString(),
-            'next_due_at' => $nextDue?->toDateTimeString(),
+            'last_polled_at' => $device->last_polled_at ? AppTime::format($device->last_polled_at) : null,
+            'next_due_at' => $nextDue ? AppTime::format($nextDue) : null,
             'next_due_label' => $nextDue
                 ? ($nextDue->isPast() ? 'Due now' : 'Next due '.$nextDue->diffForHumans())
                 : 'Not polled yet',
@@ -252,7 +253,7 @@ class DeviceMonitorService
                 $temperature = [];
                 foreach ($rows as $row) {
                     $at = isset($row['recorded_at']) ? Carbon::parse((string) $row['recorded_at']) : null;
-                    $categories[] = $at ? $at->format($range === '1h' ? 'H:i:s' : 'H:i') : '';
+                    $categories[] = $at ? AppTime::chartLabel($at, $range === '1h') : '';
                     $cpu[] = isset($row['cpu']) ? (float) $row['cpu'] : null;
                     $memory[] = isset($row['memory']) ? (float) $row['memory'] : null;
                     $temperature[] = isset($row['temperature']) ? (float) $row['temperature'] : null;
@@ -277,7 +278,7 @@ class DeviceMonitorService
             ->get();
 
         return [
-            'categories' => $rows->map(fn (DeviceMetric $m) => $m->recorded_at?->format('H:i'))->all(),
+            'categories' => $rows->map(fn (DeviceMetric $m) => AppTime::chartLabel($m->recorded_at))->all(),
             'cpu' => $rows->map(fn (DeviceMetric $m) => $m->cpu)->all(),
             'memory' => $rows->map(fn (DeviceMetric $m) => $m->memory)->all(),
             'temperature' => $rows->map(fn (DeviceMetric $m) => $m->temperature)->all(),
@@ -299,7 +300,7 @@ class DeviceMonitorService
             ->get();
 
         return [
-            'categories' => $rows->map(fn (PingSample $m) => $m->recorded_at?->format('H:i'))->all(),
+            'categories' => $rows->map(fn (PingSample $m) => AppTime::chartLabel($m->recorded_at))->all(),
             'latency' => $rows->map(fn (PingSample $m) => $m->latency_ms)->all(),
             'jitter' => $rows->map(fn (PingSample $m) => $m->jitter_ms)->all(),
             'loss' => $rows->map(fn (PingSample $m) => $m->packet_loss_pct)->all(),
@@ -321,7 +322,7 @@ class DeviceMonitorService
             ->get();
 
         return [
-            'categories' => $rows->map(fn (DeviceMetric $m) => $m->recorded_at?->format('H:i'))->all(),
+            'categories' => $rows->map(fn (DeviceMetric $m) => AppTime::chartLabel($m->recorded_at))->all(),
             'online' => $rows->map(fn (DeviceMetric $m) => $m->onu_online)->all(),
             'total' => $rows->map(fn (DeviceMetric $m) => $m->onu_total)->all(),
             'availability' => $rows->map(function (DeviceMetric $m) {
@@ -367,7 +368,7 @@ class DeviceMonitorService
 
             if ($prevAt && $prevRx !== null) {
                 $seconds = max(1, $prevAt->diffInSeconds($at));
-                $categories[] = $at->format('H:i');
+                $categories[] = AppTime::chartLabel($at);
                 $rx[] = round(((($sumRx - $prevRx) * 8) / $seconds) / 1_000_000, 3);
                 $tx[] = round(((($sumTx - $prevTx) * 8) / $seconds) / 1_000_000, 3);
             }
@@ -451,7 +452,10 @@ class DeviceMonitorService
             ->get();
 
         return [
-            'categories' => $rows->map(fn (DeviceMetricRollup $m) => $m->bucket_at?->format($period === '1h' ? 'm-d H:i' : 'H:i'))->all(),
+            'categories' => $rows->map(fn (DeviceMetricRollup $m) => AppTime::format(
+                $m->bucket_at,
+                $period === '1h' ? AppTime::CHART_DAY : AppTime::CHART
+            ))->all(),
             'cpu' => $rows->map(fn (DeviceMetricRollup $m) => $m->cpu_avg)->all(),
             'memory' => $rows->map(fn (DeviceMetricRollup $m) => $m->memory_avg)->all(),
             'temperature' => $rows->map(fn (DeviceMetricRollup $m) => $m->temperature_avg)->all(),

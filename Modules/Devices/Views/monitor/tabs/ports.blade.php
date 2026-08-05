@@ -93,7 +93,7 @@
                         'errors' => (string) $iface->errors,
                         'is_uplink' => (bool) $iface->is_uplink,
                         'port_role' => $iface->port_role ?: '—',
-                        'last_polled' => $iface->last_polled_at?->toDateTimeString() ?: '—',
+                        'last_polled' => $iface->last_polled_at ? app_time($iface->last_polled_at) : '—',
                     ];
                 @endphp
                 <tr class="hover:bg-slate-50/70">

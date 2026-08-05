@@ -361,7 +361,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (bar) bar.style.width = `${Math.min(100, Number(ov.port_usage || 0))}%`;
             if (hint) hint.textContent = `${ov.interfaces_up ?? 0} links up of ${ov.interfaces_total ?? 0} interfaces`;
             if (badge) {
-                badge.innerHTML = '<span class="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500"></span>Live · updated ' + new Date().toLocaleTimeString();
+                badge.innerHTML = '<span class="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500"></span>Live · updated ' + new Date().toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true });
             }
         } catch (e) {
             // ignore transient network errors during live refresh
