@@ -21,9 +21,12 @@ class PublishAgentReleaseCommand extends Command
 
     public function handle(AgentReleasePublisher $publisher, SnmpAgentClient $agent): int
     {
+        $this->warnIfLocalAppUrl();
+
         $path = (string) $this->argument('binary');
         if (! is_file($path)) {
             $this->error("Binary not found: {$path}");
+            $this->printUsageExample();
 
             return self::FAILURE;
         }
@@ -65,5 +68,20 @@ class PublishAgentReleaseCommand extends Command
         }
 
         return self::SUCCESS;
+    }
+
+    private function warnIfLocalAppUrl(): void
+    {
+        $appUrl = (string) config('app.url');
+        if (str_contains($appUrl, 'localhost') || str_contains($appUrl, '127.0.0.1')) {
+            $this->warn("APP_URL is {$appUrl} — manifest URLs will point there.");
+            $this->warn('Run this on the production Laravel host (isp.sgrcreations.com), not your Mac.');
+        }
+    }
+
+    private function printUsageExample(): void
+    {
+        $this->line('Run on the production Laravel host with both arguments:');
+        $this->line('  php artisan agent:publish-release 0.1.3 /path/to/snmpd-linux-amd64 --push-channel');
     }
 }

@@ -28,8 +28,13 @@
                 </div>
             @else
                 <div class="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                    No release on this Laravel channel yet. After git deploy / CI, run
-                    <code class="rounded bg-amber-100 px-1">php artisan agent:publish-release x.y.z /path/to/snmpd-linux-amd64 --push-channel</code>
+                    No release on this Laravel channel yet. Publish <strong>on the production server</strong> (not Mac localhost):
+                    <pre class="mt-2 overflow-x-auto rounded bg-amber-100/80 p-2 text-xs leading-relaxed"># From Mac: copy binary, then on ispcore host:
+scp ../snmp-agent/dist/snmpd-linux-amd64 ispcore@YOUR_WEB_HOST:~/snmpd-linux-amd64
+
+cd ~/htdocs/SNMP-test
+php artisan agent:publish-release 0.1.3 ~/snmpd-linux-amd64 --push-channel</pre>
+                    Then verify: <code class="rounded bg-amber-100 px-1">curl -sS https://isp.sgrcreations.com/updates/snmp-agent/linux-amd64/manifest.json</code>
                 </div>
             @endif
         </section>
@@ -67,6 +72,12 @@
                             <div>
                                 <dt class="text-slate-500">Last error</dt>
                                 <dd class="mt-1 text-rose-700">{{ $status['last_error'] }}</dd>
+                                @if (str_contains((string) $status['last_error'], 'lookup') || str_contains((string) $status['last_error'], 'dial tcp'))
+                                    <p class="mt-2 text-xs text-slate-600">
+                                        Agent DNS cannot resolve the Laravel host. On the agent VPS fix DNS, or temporarily:
+                                        <code class="rounded bg-slate-100 px-1">echo 'SERVER_IP isp.sgrcreations.com' | sudo tee -a /etc/hosts</code>
+                                    </p>
+                                @endif
                             </div>
                         @endif
                     </dl>
