@@ -306,6 +306,127 @@ class DevicePollService
     }
 
     /**
+     * Pull the agent's latest interface inventory into Laravel (status, counters, rates).
+     * Used by scheduled minute reconcile and Overview live refresh — no SNMP from PHP.
+     *
+     * @return int Number of interfaces upserted
+     */
+    public function syncInterfacesFromAgent(Device $device): int
+    {
+        if (! $this->agent->configured()) {
+            return 0;
+        }
+
+        $rows = $this->agent->listInterfaces($device);
+        if ($rows === []) {
+            return 0;
+        }
+
+        $startedAt = now();
+        $count = 0;
+
+        DB::transaction(function () use ($device, $rows, $startedAt, &$count): void {
+            foreach ($rows as $row) {
+                $ifIndex = (int) ($row['if_index'] ?? 0);
+                if ($ifIndex < 1) {
+                    continue;
+                }
+
+                $payload = [
+                    'if_index' => $ifIndex,
+                    'name' => (string) ($row['name'] ?? ''),
+                    'description' => (string) ($row['description'] ?? ''),
+                    'oper_status' => (string) ($row['oper_status'] ?? 'unknown'),
+                    'speed' => (int) ($row['speed'] ?? 0),
+                    'rx_bytes' => (string) ($row['rx_bytes'] ?? 0),
+                    'tx_bytes' => (string) ($row['tx_bytes'] ?? 0),
+                    'errors' => (int) ($row['errors'] ?? 0),
+                ];
+
+                $existing = DeviceInterface::query()
+                    ->where('device_id', $device->id)
+                    ->where('if_index', $ifIndex)
+                    ->first();
+
+                $rates = $this->calculateRates($existing, $payload, $startedAt);
+                if (array_key_exists('rx_bps', $row) && $row['rx_bps'] !== null && $row['rx_bps'] !== '') {
+                    $rates['rx_bps'] = (string) $row['rx_bps'];
+                }
+                if (array_key_exists('tx_bps', $row) && $row['tx_bps'] !== null && $row['tx_bps'] !== '') {
+                    $rates['tx_bps'] = (string) $row['tx_bps'];
+                }
+                if (array_key_exists('utilization', $row) && $row['utilization'] !== null && $row['utilization'] !== '') {
+                    $rates['utilization'] = (float) $row['utilization'];
+                }
+
+                $role = $this->classifyPortRole($payload['name'], $payload['description']);
+
+                /** @var DeviceInterface $interface */
+                $interface = DeviceInterface::query()->updateOrCreate(
+                    [
+                        'device_id' => $device->id,
+                        'if_index' => $ifIndex,
+                    ],
+                    [
+                        'name' => $payload['name'],
+                        'description' => $payload['description'],
+                        'oper_status' => $payload['oper_status'],
+                        'speed' => $payload['speed'],
+                        'rx_bytes' => $payload['rx_bytes'],
+                        'tx_bytes' => $payload['tx_bytes'],
+                        'errors' => $payload['errors'],
+                        'utilization' => $rates['utilization'],
+                        'rx_bps' => $rates['rx_bps'],
+                        'tx_bps' => $rates['tx_bps'],
+                        'port_role' => $existing?->is_uplink ? 'uplink' : ($existing?->port_role ?: $role),
+                        'is_uplink' => (bool) ($existing?->is_uplink ?? $role === 'uplink'),
+                        'last_polled_at' => $startedAt,
+                    ]
+                );
+
+                $writeSample = true;
+                if ($existing?->last_polled_at && $existing->last_polled_at->diffInSeconds($startedAt) < 45) {
+                    $writeSample = false;
+                }
+
+                if ($writeSample) {
+                    InterfaceMetric::query()->create([
+                        'device_id' => $device->id,
+                        'device_interface_id' => $interface->id,
+                        'rx_bytes' => $payload['rx_bytes'],
+                        'tx_bytes' => $payload['tx_bytes'],
+                        'errors' => $payload['errors'],
+                        'utilization' => $rates['utilization'],
+                        'recorded_at' => $startedAt,
+                    ]);
+                }
+
+                $count++;
+            }
+
+            // Backfill VLAN Fabric from IF names when empty (do not wipe Q-BRIDGE rows).
+            if ($device->vlans()->count() === 0) {
+                $vlanRows = $this->vlans->collectFromInterfaces(array_map(static fn (array $r): array => [
+                    'name' => (string) ($r['name'] ?? ''),
+                    'description' => (string) ($r['description'] ?? ''),
+                    'oper_status' => (string) ($r['oper_status'] ?? 'unknown'),
+                ], $rows));
+                if ($vlanRows !== []) {
+                    $this->upsertVlans($device, $vlanRows);
+                }
+            }
+
+            $device->forceFill([
+                'interface_count' => $count,
+                'last_polled_at' => $startedAt,
+                'last_seen_at' => $startedAt,
+            ])->save();
+        });
+
+        return $count;
+    }
+
+    /**
      * @param  array<string, mixed>  $row
      * @return array{rx_bps: ?string, tx_bps: ?string, utilization: ?float}
      */
@@ -398,6 +519,28 @@ class DevicePollService
                 'status' => $vlan['status'],
                 'member_ports' => $vlan['member_ports'],
             ]);
+        }
+    }
+
+    /**
+     * Upsert VLAN rows without deleting existing Q-BRIDGE discoveries.
+     *
+     * @param  array<int, array{vlan_id: int, name: ?string, status: string, member_ports: int}>  $vlanRows
+     */
+    private function upsertVlans(Device $device, array $vlanRows): void
+    {
+        foreach ($vlanRows as $vlan) {
+            DeviceVlan::query()->updateOrCreate(
+                [
+                    'device_id' => $device->id,
+                    'vlan_id' => $vlan['vlan_id'],
+                ],
+                [
+                    'name' => $vlan['name'],
+                    'status' => $vlan['status'],
+                    'member_ports' => $vlan['member_ports'],
+                ]
+            );
         }
     }
 

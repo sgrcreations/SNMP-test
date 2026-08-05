@@ -246,6 +246,20 @@ class SnmpAgentClient
         return is_array($data) ? array_values(array_filter($data, 'is_array')) : [];
     }
 
+    /**
+     * Latest interface inventory from the agent (rates already computed server-side when possible).
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function listInterfaces(Device $device): array
+    {
+        /** @var array<string, mixed> $payload */
+        $payload = $this->request('get', '/v1/devices/by-external/'.$device->id.'/interfaces');
+        $data = $payload['data'] ?? [];
+
+        return is_array($data) ? array_values(array_filter($data, 'is_array')) : [];
+    }
+
     public function configured(): bool
     {
         return filled($this->baseUrl()) && filled($this->apiKey());

@@ -27,7 +27,7 @@
     @if(($profile['source'] ?? '') === 'snmp-agent')
         <span id="liveRefreshBadge" class="ml-auto inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-emerald-700">
             <span class="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500"></span>
-            Live · every {{ $profile['live_refresh_seconds'] }}s while viewing
+        Live · every {{ $profile['live_refresh_seconds'] }}s while viewing
         </span>
     @endif
 </div>
@@ -195,6 +195,15 @@ document.addEventListener('DOMContentLoaded', () => {
     let portStatusChart = null;
     let topUtilChart = null;
     let topErrorsChart = null;
+    let trafficChart = null;
+
+    const fmtBps = (bps) => {
+        const v = Number(bps || 0);
+        if (v >= 1e9) return (v / 1e9).toFixed(2) + ' Gbps';
+        if (v >= 1e6) return (v / 1e6).toFixed(2) + ' Mbps';
+        if (v >= 1e3) return (v / 1e3).toFixed(2) + ' Kbps';
+        return Math.round(v) + ' bps';
+    };
 
     const shortName = (n) => {
         const s = String(n || '');
@@ -267,7 +276,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (window.ApexCharts) {
         if (traffic.categories?.length) {
-            new ApexCharts(document.querySelector('#trafficChart'), {
+            trafficChart = new ApexCharts(document.querySelector('#trafficChart'), {
                 chart: { type: 'line', height: 250, toolbar: { show: false } },
                 stroke: { curve: 'smooth', width: 2 },
                 colors: ['#2563eb', '#059669'],
@@ -278,7 +287,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 xaxis: { categories: traffic.categories },
                 dataLabels: { enabled: false },
                 grid: { borderColor: '#e2e8f0' },
-            }).render();
+            });
+            trafficChart.render();
         }
 
         if (quality.categories?.length) {
@@ -301,6 +311,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function refreshOverview() {
         if (document.hidden || !liveEnabled) return;
+        const badge = document.getElementById('liveRefreshBadge');
+        if (badge) badge.classList.add('opacity-70');
         try {
             const res = await fetch(`${metricsUrl}?range=${encodeURIComponent(range)}`, {
                 headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
@@ -311,6 +323,22 @@ document.addEventListener('DOMContentLoaded', () => {
             if (payload.fabric) {
                 fabric = payload.fabric;
                 renderFabricCharts(fabric);
+            }
+            if (payload.traffic?.categories?.length && trafficChart) {
+                trafficChart.updateOptions({ xaxis: { categories: payload.traffic.categories } });
+                trafficChart.updateSeries([
+                    { name: 'RX Mbps', data: payload.traffic.rx_mbps || [] },
+                    { name: 'TX Mbps', data: payload.traffic.tx_mbps || [] },
+                ]);
+            }
+            const live = payload.uplink_live;
+            if (live) {
+                const cards = document.querySelectorAll('#trafficChart')[0]?.closest('.sgr-card')?.querySelectorAll('.grid.grid-cols-3 .font-bold');
+                if (cards && cards.length >= 3) {
+                    cards[0].textContent = fmtBps(live.rx_bps);
+                    cards[1].textContent = fmtBps(live.tx_bps);
+                    cards[2].textContent = fmtBps(live.capacity_bps);
+                }
             }
             const ov = payload.overview;
             if (!ov) return;
@@ -332,13 +360,20 @@ document.addEventListener('DOMContentLoaded', () => {
             if (big) big.textContent = `${ov.port_usage ?? 0}%`;
             if (bar) bar.style.width = `${Math.min(100, Number(ov.port_usage || 0))}%`;
             if (hint) hint.textContent = `${ov.interfaces_up ?? 0} links up of ${ov.interfaces_total ?? 0} interfaces`;
+            if (badge) {
+                badge.innerHTML = '<span class="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500"></span>Live · updated ' + new Date().toLocaleTimeString();
+            }
         } catch (e) {
             // ignore transient network errors during live refresh
+        } finally {
+            if (badge) badge.classList.remove('opacity-70');
         }
     }
 
     if (liveEnabled) {
         setInterval(refreshOverview, refreshMs);
+        // First tick shortly after open so numbers match agent without waiting a full minute.
+        setTimeout(refreshOverview, 5000);
     }
 });
 </script>

@@ -83,7 +83,7 @@ class PollDevicesCommand extends Command
 
     private function reconcileFromAgent(SnmpAgentClient $agent): int
     {
-        $this->info('snmp-agent configured — reconciling device status (no Laravel metric history writes).');
+        $this->info('snmp-agent configured — reconciling status + interfaces for live UI.');
 
         try {
             $items = $agent->listDevices();
@@ -95,6 +95,8 @@ class PollDevicesCommand extends Command
 
         $updated = 0;
         $filterId = $this->option('device') ? (int) $this->option('device') : null;
+        /** @var DevicePollService $poller */
+        $poller = app(DevicePollService::class);
 
         foreach ($items as $row) {
             if (! is_array($row)) {
@@ -127,8 +129,21 @@ class PollDevicesCommand extends Command
                 'last_seen_at' => $lastSeen ?? $device->last_seen_at,
             ])->save();
 
+            try {
+                $ifCount = $poller->syncInterfacesFromAgent($device);
+                $this->line(sprintf(
+                    '[%s] %s → %s · %d ifaces',
+                    $device->id,
+                    $device->displayEndpoint(),
+                    $reach ?: 'unknown',
+                    $ifCount
+                ));
+            } catch (Throwable $e) {
+                $this->warn(sprintf('[%s] interface sync failed: %s', $device->id, $e->getMessage()));
+                $this->line(sprintf('[%s] %s → %s', $device->id, $device->displayEndpoint(), $reach ?: 'unknown'));
+            }
+
             $updated++;
-            $this->line(sprintf('[%s] %s → %s', $device->id, $device->displayEndpoint(), $reach ?: 'unknown'));
         }
 
         $this->info("Reconciled {$updated} device(s) from snmp-agent.");

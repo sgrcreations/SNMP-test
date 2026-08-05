@@ -113,16 +113,41 @@ class DeviceMonitorController
 
         $range = $request->string('range', '24h')->toString();
 
+        // Keep Overview live: pull latest agent IF inventory into Laravel, then render.
+        try {
+            $this->poller->syncInterfacesFromAgent($device);
+        } catch (\Throwable) {
+            // Still return last known Laravel state if agent is briefly unreachable.
+        }
+
         $device->load(['interfaces' => fn ($q) => $q->orderBy('if_index')]);
         $fresh = $device->fresh(['interfaces']);
 
         return response()->json([
             'metrics' => $this->monitor->metricSeries($device, $range),
-            'traffic' => $this->monitor->uplinkTrafficSeries($device, $range),
+            'traffic' => $this->monitor->uplinkTrafficSeries($fresh ?? $device, $range),
             'fabric' => $this->monitor->fabricSnapshot($fresh ?? $device),
             'overview' => $this->monitor->overview($fresh ?? $device),
             'polling' => $this->monitor->pollingProfile($device),
+            'uplink_live' => $this->uplinkLiveRates($fresh ?? $device),
         ]);
+    }
+
+    /**
+     * @return array{rx_bps: float, tx_bps: float, capacity_bps: float, names: list<string>}
+     */
+    private function uplinkLiveRates(Device $device): array
+    {
+        $marked = $device->relationLoaded('interfaces')
+            ? $device->interfaces->where('is_uplink', true)
+            : $device->interfaces()->where('is_uplink', true)->get();
+
+        return [
+            'rx_bps' => (float) $marked->sum(fn ($i) => (float) ($i->rx_bps ?? 0)),
+            'tx_bps' => (float) $marked->sum(fn ($i) => (float) ($i->tx_bps ?? 0)),
+            'capacity_bps' => (float) $marked->sum(fn ($i) => (float) ($i->speed ?? 0)),
+            'names' => $marked->pluck('name')->values()->all(),
+        ];
     }
 
     public function interfaceMetrics(Request $request, Device $device, int $interface): JsonResponse
