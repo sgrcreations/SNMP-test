@@ -76,14 +76,40 @@
 <div class="mb-4 grid gap-4 xl:grid-cols-2">
     <div class="sgr-card p-4">
         <div class="mb-3 flex items-center justify-between">
-            <h3 class="font-semibold">Device Uplink Traffic</h3>
+            <div>
+                <h3 class="font-semibold">Device Uplink Traffic</h3>
+                @php
+                    $markedUplinks = $device->interfaces->where('is_uplink', true);
+                    $ulRx = $markedUplinks->sum(fn ($i) => (float) ($i->rx_bps ?? 0));
+                    $ulTx = $markedUplinks->sum(fn ($i) => (float) ($i->tx_bps ?? 0));
+                    $ulCap = $markedUplinks->sum(fn ($i) => (float) ($i->speed ?? 0));
+                    $ulFmt = function (float $bps): string {
+                        if ($bps >= 1_000_000_000) return number_format($bps / 1_000_000_000, 2).' Gbps';
+                        if ($bps >= 1_000_000) return number_format($bps / 1_000_000, 2).' Mbps';
+                        if ($bps >= 1_000) return number_format($bps / 1_000, 2).' Kbps';
+                        return number_format($bps, 0).' bps';
+                    };
+                @endphp
+                @if($markedUplinks->isNotEmpty())
+                    <p class="mt-0.5 text-xs text-slate-400">{{ $markedUplinks->pluck('name')->implode(', ') }} ·
+                        IN {{ $ulFmt($ulRx) }} · OUT {{ $ulFmt($ulTx) }} · Cap {{ $ulFmt($ulCap) }}
+                    </p>
+                @endif
+            </div>
             <span class="text-[10px] font-bold uppercase text-slate-400">Mbps</span>
         </div>
+        @if($markedUplinks->isNotEmpty())
+            <div class="mb-3 grid grid-cols-3 gap-2 text-center text-xs">
+                <div class="rounded-xl bg-blue-50 p-2"><div class="text-blue-500">Download</div><div class="font-bold text-blue-800">{{ $ulFmt($ulRx) }}</div></div>
+                <div class="rounded-xl bg-emerald-50 p-2"><div class="text-emerald-500">Upload</div><div class="font-bold text-emerald-800">{{ $ulFmt($ulTx) }}</div></div>
+                <div class="rounded-xl bg-slate-50 p-2"><div class="text-slate-400">Capacity</div><div class="font-bold text-slate-800">{{ $ulFmt($ulCap) }}</div></div>
+            </div>
+        @endif
         <div id="trafficChart" class="h-64"></div>
         @if(empty($trafficSeries['mapped']))
-            <p class="mt-2 text-sm text-slate-400">No suitable uplink interface found yet. Sync again after the device reports physical ports.</p>
+            <p class="mt-2 text-sm text-slate-400">No suitable uplink interface found yet. Mark a port on Switch Ports, then Sync.</p>
         @elseif(count($trafficSeries['categories']) === 0)
-            <p class="mt-2 text-sm text-slate-400">Need at least two poll samples to chart traffic rates. Click Sync again in a minute.</p>
+            <p class="mt-2 text-sm text-slate-400">Live rates above are from the last poll. History needs interface samples (local poll mode) or Sync twice.</p>
         @endif
     </div>
     <div class="sgr-card p-4">

@@ -13,14 +13,47 @@
 
         return number_format($v, 2).' bps';
     };
+    $fmtBytes = function ($bytes): string {
+        $v = (float) $bytes;
+        if ($v >= 1_000_000_000_000) {
+            return number_format($v / 1_000_000_000_000, 2).' TB';
+        }
+        if ($v >= 1_000_000_000) {
+            return number_format($v / 1_000_000_000, 2).' GB';
+        }
+        if ($v >= 1_000_000) {
+            return number_format($v / 1_000_000, 2).' MB';
+        }
+        if ($v >= 1_000) {
+            return number_format($v / 1_000, 2).' KB';
+        }
+
+        return number_format($v, 0).' B';
+    };
     $rows = $device->isOlt() ? $accessPorts : $device->interfaces;
+    $uplinkNames = $rows->where('is_uplink', true)->pluck('name')->values();
 @endphp
 
-<div class="sgr-card overflow-hidden">
+<div
+    class="sgr-card overflow-hidden"
+    x-data="{
+        open: false,
+        port: null,
+        show(p) { this.port = p; this.open = true; },
+        close() { this.open = false; }
+    }"
+>
     <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
         <div>
             <h3 class="font-semibold">{{ $device->isOlt() ? 'Uplink / Access Ports' : 'Fabric Interfaces' }}</h3>
-            <p class="text-xs text-slate-400">{{ $rows->count() }} ports from last SNMP poll</p>
+            <p class="text-xs text-slate-400">
+                {{ $rows->count() }} ports from last SNMP poll
+                @if($uplinkNames->isNotEmpty())
+                    · Marked uplinks: <span class="font-semibold text-cyan-700">{{ $uplinkNames->implode(', ') }}</span>
+                    — chart on
+                    <a href="{{ route('devices.show', ['device' => $device, 'tab' => 'overview']) }}" class="font-semibold text-cyan-700 hover:underline">Overview → Device Uplink Traffic</a>
+                @endif
+            </p>
         </div>
         <form method="GET" class="w-full max-w-xs sm:w-auto">
             <input type="hidden" name="tab" value="ports">
@@ -37,12 +70,37 @@
                 <th>Traffic IN</th>
                 <th>Traffic OUT</th>
                 <th>Util</th>
+                <th>RX dBm</th>
+                <th>TX dBm</th>
                 <th>Errors</th>
                 <th>Uplink</th>
+                <th class="w-16">View</th>
             </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
             @forelse($rows->when(request('q'), fn($c) => $c->filter(fn($i) => str_contains(strtolower($i->name.' '.$i->description), strtolower(request('q'))))) as $iface)
+                @php
+                    $portPayload = [
+                        'id' => $iface->id,
+                        'name' => $iface->name,
+                        'description' => $iface->description ?: ('ifIndex '.$iface->if_index),
+                        'if_index' => $iface->if_index,
+                        'oper_status' => $iface->oper_status,
+                        'speed' => $iface->speedLabel(),
+                        'rx_bps' => $fmtBps($iface->rx_bps),
+                        'tx_bps' => $fmtBps($iface->tx_bps),
+                        'rx_bytes' => $fmtBytes($iface->rx_bytes),
+                        'tx_bytes' => $fmtBytes($iface->tx_bytes),
+                        'utilization' => $iface->utilization !== null ? $iface->utilization.'%' : '—',
+                        'rx_power' => $iface->rx_power_dbm !== null ? number_format($iface->rx_power_dbm, 1).' dBm' : '—',
+                        'tx_power' => $iface->tx_power_dbm !== null ? number_format($iface->tx_power_dbm, 1).' dBm' : '—',
+                        'temperature' => $iface->temperature !== null ? $iface->temperature.'°C' : '—',
+                        'errors' => (string) $iface->errors,
+                        'is_uplink' => (bool) $iface->is_uplink,
+                        'port_role' => $iface->port_role ?: '—',
+                        'last_polled' => $iface->last_polled_at?->toDateTimeString() ?: '—',
+                    ];
+                @endphp
                 <tr class="hover:bg-slate-50/70">
                     <td>
                         <div class="font-semibold">{{ $iface->name }}</div>
@@ -62,6 +120,12 @@
                     <td class="text-blue-600 font-medium">↓ {{ $fmtBps($iface->rx_bps) }}</td>
                     <td class="text-emerald-600 font-medium">↑ {{ $fmtBps($iface->tx_bps) }}</td>
                     <td>{{ $iface->utilization !== null ? $iface->utilization.'%' : '—' }}</td>
+                    <td class="font-mono text-xs {{ $iface->rx_power_dbm !== null && $iface->rx_power_dbm < -28 ? 'font-bold text-rose-600' : 'text-slate-600' }}">
+                        {{ $iface->rx_power_dbm !== null ? number_format($iface->rx_power_dbm, 1) : '—' }}
+                    </td>
+                    <td class="font-mono text-xs text-slate-600">
+                        {{ $iface->tx_power_dbm !== null ? number_format($iface->tx_power_dbm, 1) : '—' }}
+                    </td>
                     <td>{{ $iface->errors }}</td>
                     <td>
                         @can('devices.update')
@@ -75,11 +139,114 @@
                             {{ $iface->is_uplink ? 'Yes' : '—' }}
                         @endcan
                     </td>
+                    <td>
+                        <button
+                            type="button"
+                            class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:border-cyan-200 hover:bg-cyan-50 hover:text-cyan-700"
+                            title="View port details"
+                            @click="show(@js($portPayload))"
+                        >
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                            </svg>
+                        </button>
+                    </td>
                 </tr>
             @empty
-                <tr><td colspan="8" class="px-5 py-10 text-center text-slate-400">No interface rows yet. Sync this device to pull IF-MIB data.</td></tr>
+                <tr><td colspan="11" class="px-5 py-10 text-center text-slate-400">No interface rows yet. Sync this device to pull IF-MIB data.</td></tr>
             @endforelse
             </tbody>
         </table>
+    </div>
+
+    {{-- Per-port detail popup --}}
+    <div
+        x-cloak
+        x-show="open"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4"
+        role="dialog"
+        aria-modal="true"
+    >
+        <div class="absolute inset-0 bg-slate-900/40" @click="close()"></div>
+        <div
+            class="relative w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-5 shadow-xl"
+            @keydown.escape.window="close()"
+        >
+            <div class="mb-4 flex items-start justify-between gap-3">
+                <div>
+                    <div class="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">Interface</div>
+                    <h3 class="mt-1 text-lg font-bold text-slate-900" x-text="port?.name"></h3>
+                    <p class="text-sm text-slate-500" x-text="port?.description"></p>
+                </div>
+                <button type="button" class="rounded-lg border border-slate-200 px-2 py-1 text-sm text-slate-500 hover:bg-slate-50" @click="close()">Close</button>
+            </div>
+
+            <template x-if="port">
+                <dl class="grid grid-cols-2 gap-3 text-sm">
+                    <div class="rounded-xl bg-slate-50 p-3">
+                        <dt class="text-xs text-slate-400">Status</dt>
+                        <dd class="mt-1 font-semibold uppercase" x-text="port.oper_status"></dd>
+                    </div>
+                    <div class="rounded-xl bg-slate-50 p-3">
+                        <dt class="text-xs text-slate-400">Speed</dt>
+                        <dd class="mt-1 font-semibold" x-text="port.speed"></dd>
+                    </div>
+                    <div class="rounded-xl bg-slate-50 p-3">
+                        <dt class="text-xs text-slate-400">Traffic IN</dt>
+                        <dd class="mt-1 font-semibold text-blue-600" x-text="'↓ ' + port.rx_bps"></dd>
+                    </div>
+                    <div class="rounded-xl bg-slate-50 p-3">
+                        <dt class="text-xs text-slate-400">Traffic OUT</dt>
+                        <dd class="mt-1 font-semibold text-emerald-600" x-text="'↑ ' + port.tx_bps"></dd>
+                    </div>
+                    <div class="rounded-xl bg-slate-50 p-3">
+                        <dt class="text-xs text-slate-400">RX total</dt>
+                        <dd class="mt-1 font-semibold" x-text="port.rx_bytes"></dd>
+                    </div>
+                    <div class="rounded-xl bg-slate-50 p-3">
+                        <dt class="text-xs text-slate-400">TX total</dt>
+                        <dd class="mt-1 font-semibold" x-text="port.tx_bytes"></dd>
+                    </div>
+                    <div class="rounded-xl bg-slate-50 p-3">
+                        <dt class="text-xs text-slate-400">Utilization</dt>
+                        <dd class="mt-1 font-semibold" x-text="port.utilization"></dd>
+                    </div>
+                    <div class="rounded-xl bg-slate-50 p-3">
+                        <dt class="text-xs text-slate-400">Errors</dt>
+                        <dd class="mt-1 font-semibold" x-text="port.errors"></dd>
+                    </div>
+                    <div class="rounded-xl bg-slate-50 p-3">
+                        <dt class="text-xs text-slate-400">RX Power</dt>
+                        <dd class="mt-1 font-semibold" x-text="port.rx_power"></dd>
+                    </div>
+                    <div class="rounded-xl bg-slate-50 p-3">
+                        <dt class="text-xs text-slate-400">TX Power</dt>
+                        <dd class="mt-1 font-semibold" x-text="port.tx_power"></dd>
+                    </div>
+                    <div class="rounded-xl bg-slate-50 p-3">
+                        <dt class="text-xs text-slate-400">Port Temp</dt>
+                        <dd class="mt-1 font-semibold" x-text="port.temperature"></dd>
+                    </div>
+                    <div class="rounded-xl bg-slate-50 p-3">
+                        <dt class="text-xs text-slate-400">Role</dt>
+                        <dd class="mt-1 font-semibold" x-text="port.port_role"></dd>
+                    </div>
+                    <div class="rounded-xl bg-slate-50 p-3">
+                        <dt class="text-xs text-slate-400">Uplink</dt>
+                        <dd class="mt-1 font-semibold" x-text="port.is_uplink ? 'Yes' : 'No'"></dd>
+                    </div>
+                    <div class="col-span-2 rounded-xl bg-slate-50 p-3">
+                        <dt class="text-xs text-slate-400">ifIndex · Last polled</dt>
+                        <dd class="mt-1 font-semibold" x-text="port.if_index + ' · ' + port.last_polled"></dd>
+                    </div>
+                </dl>
+            </template>
+
+            <p class="mt-4 text-xs text-slate-500" x-show="port?.is_uplink">
+                This port is marked as uplink. Combined traffic appears on
+                <a href="{{ route('devices.show', ['device' => $device, 'tab' => 'overview']) }}" class="font-semibold text-cyan-700 hover:underline">Overview → Device Uplink Traffic</a>.
+            </p>
+        </div>
     </div>
 </div>
