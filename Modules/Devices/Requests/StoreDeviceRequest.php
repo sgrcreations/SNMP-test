@@ -3,6 +3,7 @@
 namespace Modules\Devices\Requests;
 
 use App\Core\Enums\DeviceStatus;
+use App\Core\Enums\DeviceType;
 use App\Core\Enums\DeviceVendor;
 use App\Core\Enums\SnmpAuthProtocol;
 use App\Core\Enums\SnmpPrivProtocol;
@@ -22,6 +23,7 @@ class StoreDeviceRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:255'],
             'vendor' => ['required', Rule::enum(DeviceVendor::class)],
+            'device_type' => ['nullable', Rule::enum(DeviceType::class)],
             'model' => ['nullable', 'string', 'max:255'],
             'hostname' => ['nullable', 'string', 'max:255'],
             'ip_address' => ['required', 'ip'],
@@ -34,6 +36,9 @@ class StoreDeviceRequest extends FormRequest
             'priv_password' => ['nullable', 'string', 'max:255'],
             'port' => ['required', 'integer', 'min:1', 'max:65535'],
             'location' => ['nullable', 'string', 'max:255'],
+            'area' => ['nullable', 'string', 'max:255'],
+            'latitude' => ['nullable', 'numeric', 'between:-90,90'],
+            'longitude' => ['nullable', 'numeric', 'between:-180,180'],
             'description' => ['nullable', 'string', 'max:2000'],
             'polling_interval' => ['required', 'integer', 'min:30', 'max:86400'],
             'status' => ['required', Rule::in([DeviceStatus::Active->value, DeviceStatus::Inactive->value])],

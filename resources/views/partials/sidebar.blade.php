@@ -26,9 +26,13 @@
         </a>
 
         @can('devices.view')
-            <a href="{{ route('devices.index') }}" @click="sidebarOpen = false" class="sgr-nav-link {{ request()->routeIs('devices.*') ? 'sgr-nav-link-active' : '' }}">
+            <a href="{{ route('devices.index') }}" @click="sidebarOpen = false" class="sgr-nav-link {{ request()->routeIs('devices.index') || request()->routeIs('devices.show') || request()->routeIs('devices.create') || request()->routeIs('devices.edit') ? 'sgr-nav-link-active' : '' }}">
                 <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M5 5h14a1 1 0 011 1v4H4V6a1 1 0 011-1zm-1 7h16v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6z"/></svg>
                 <span>Devices</span>
+            </a>
+            <a href="{{ route('devices.map') }}" @click="sidebarOpen = false" class="sgr-nav-link {{ request()->routeIs('devices.map') ? 'sgr-nav-link-active' : '' }}">
+                <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l5.447 2.724A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
+                <span>Network Map</span>
             </a>
             <a href="{{ route('interfaces.index') }}" @click="sidebarOpen = false" class="sgr-nav-link {{ request()->routeIs('interfaces.*') ? 'sgr-nav-link-active' : '' }}">
                 <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4 6h16M4 12h10M4 18h16"/></svg>

@@ -12,6 +12,7 @@
         'action' => route('devices.store'),
         'method' => 'POST',
         'vendors' => $vendors,
+        'deviceTypes' => $deviceTypes,
         'snmpVersions' => $snmpVersions,
         'authProtocols' => $authProtocols,
         'privProtocols' => $privProtocols,

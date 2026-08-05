@@ -70,5 +70,6 @@
     </div>
 
     {{ $scripts ?? '' }}
+    @stack('scripts')
 </body>
 </html>

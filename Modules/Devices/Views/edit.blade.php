@@ -14,6 +14,7 @@
         'action' => route('devices.update', $device),
         'method' => 'PUT',
         'vendors' => $vendors,
+        'deviceTypes' => $deviceTypes,
         'snmpVersions' => $snmpVersions,
         'authProtocols' => $authProtocols,
         'privProtocols' => $privProtocols,

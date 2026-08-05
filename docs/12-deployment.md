@@ -12,6 +12,27 @@ npm install && npm run build
 php artisan serve
 ```
 
+For automatic SNMP polling you also need workers:
+
+```bash
+composer run workers
+# or separately:
+php artisan queue:work --tries=2 --timeout=90
+php artisan schedule:work
+```
+
+## Windows local PC (metrics not updating)
+
+If the UI works but devices never poll, see **[19-windows-polling.md](19-windows-polling.md)**.
+
+Quick fix on Windows: keep this running in a separate terminal:
+
+```bat
+composer run workers
+```
+
+Or double-click `scripts\windows-start-workers.bat`.
+
 ## Production (MySQL + Redis)
 
 1. Set `.env`:

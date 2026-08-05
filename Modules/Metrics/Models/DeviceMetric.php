@@ -16,6 +16,8 @@ class DeviceMetric extends Model
         'rx_bytes',
         'tx_bytes',
         'uptime',
+        'onu_online',
+        'onu_total',
         'recorded_at',
     ];
 
@@ -25,6 +27,8 @@ class DeviceMetric extends Model
             'cpu' => 'float',
             'memory' => 'float',
             'temperature' => 'float',
+            'onu_online' => 'integer',
+            'onu_total' => 'integer',
             'recorded_at' => 'datetime',
         ];
     }

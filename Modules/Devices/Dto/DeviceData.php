@@ -7,6 +7,7 @@ readonly class DeviceData
     public function __construct(
         public string $name,
         public string $vendor,
+        public ?string $deviceType,
         public ?string $model,
         public ?string $hostname,
         public string $ipAddress,
@@ -19,6 +20,9 @@ readonly class DeviceData
         public ?string $privPassword,
         public int $port,
         public ?string $location,
+        public ?string $area,
+        public ?float $latitude,
+        public ?float $longitude,
         public ?string $description,
         public int $pollingInterval,
         public string $status,
@@ -30,6 +34,7 @@ readonly class DeviceData
         return new self(
             name: $data['name'],
             vendor: $data['vendor'],
+            deviceType: $data['device_type'] ?? null,
             model: $data['model'] ?? null,
             hostname: $data['hostname'] ?? null,
             ipAddress: $data['ip_address'],
@@ -42,6 +47,9 @@ readonly class DeviceData
             privPassword: $data['priv_password'] ?? null,
             port: (int) ($data['port'] ?? 161),
             location: $data['location'] ?? null,
+            area: $data['area'] ?? null,
+            latitude: isset($data['latitude']) && $data['latitude'] !== '' ? (float) $data['latitude'] : null,
+            longitude: isset($data['longitude']) && $data['longitude'] !== '' ? (float) $data['longitude'] : null,
             description: $data['description'] ?? null,
             pollingInterval: (int) ($data['polling_interval'] ?? 60),
             status: $data['status'] ?? 'active',
@@ -51,9 +59,10 @@ readonly class DeviceData
 
     public function toArray(): array
     {
-        return array_filter([
+        $payload = array_filter([
             'name' => $this->name,
             'vendor' => $this->vendor,
+            'device_type' => $this->deviceType,
             'model' => $this->model,
             'hostname' => $this->hostname,
             'ip_address' => $this->ipAddress,
@@ -66,10 +75,17 @@ readonly class DeviceData
             'priv_password' => $this->privPassword,
             'port' => $this->port,
             'location' => $this->location,
+            'area' => $this->area,
             'description' => $this->description,
             'polling_interval' => $this->pollingInterval,
             'status' => $this->status,
             'created_by' => $this->createdBy,
         ], static fn ($value) => $value !== null);
+
+        // Allow clearing map coordinates when the form fields are emptied.
+        $payload['latitude'] = $this->latitude;
+        $payload['longitude'] = $this->longitude;
+
+        return $payload;
     }
 }

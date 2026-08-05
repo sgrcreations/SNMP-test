@@ -3,6 +3,7 @@
 namespace Modules\Devices\Controllers;
 
 use App\Core\Enums\DeviceStatus;
+use App\Core\Enums\DeviceType;
 use App\Core\Enums\DeviceVendor;
 use App\Core\Enums\SnmpAuthProtocol;
 use App\Core\Enums\SnmpPrivProtocol;
@@ -86,11 +87,19 @@ class DeviceController
 
     public function update(UpdateDeviceRequest $request, Device $device): RedirectResponse
     {
-        $this->deviceService->update($device->id, DeviceData::fromArray($request->validated()));
+        $updated = $this->deviceService->update($device->id, DeviceData::fromArray($request->validated()));
 
-        return redirect()
-            ->route('devices.show', $device)
+        $redirect = redirect()
+            ->route('devices.show', $updated)
             ->with('success', 'Device updated successfully.');
+
+        if ($updated->isOlt()) {
+            return redirect()
+                ->route('devices.show', ['device' => $updated, 'tab' => 'command-center'])
+                ->with('success', 'Device updated. OLT workspace unlocked (Command Center, PON, ONUs, Tree).');
+        }
+
+        return $redirect;
     }
 
     public function destroy(Device $device): RedirectResponse
@@ -116,6 +125,7 @@ class DeviceController
     {
         return [
             'vendors' => DeviceVendor::options(),
+            'deviceTypes' => DeviceType::options(),
             'snmpVersions' => SnmpVersion::options(),
             'authProtocols' => SnmpAuthProtocol::options(),
             'privProtocols' => SnmpPrivProtocol::options(),

@@ -46,6 +46,10 @@ class DeviceRepository extends BaseRepository implements DeviceRepositoryInterfa
             $query->where('snmp_version', $filters['snmp_version']);
         }
 
+        if (! empty($filters['device_type'])) {
+            $query->where('device_type', $filters['device_type']);
+        }
+
         return $query->latest()->paginate($perPage)->withQueryString();
     }
 

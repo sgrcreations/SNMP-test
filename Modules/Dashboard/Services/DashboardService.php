@@ -5,6 +5,7 @@ namespace Modules\Dashboard\Services;
 use Modules\Devices\Models\Device;
 use Modules\Devices\Repositories\Contracts\DeviceRepositoryInterface;
 use Modules\Metrics\Models\DeviceMetric;
+use Modules\Alerts\Models\Alert;
 use Modules\Settings\Services\SettingService;
 
 class DashboardService
@@ -40,7 +41,7 @@ class DashboardService
                 'online' => $deviceStats['online'] ?? 0,
                 'offline' => $deviceStats['offline'] ?? 0,
                 'unknown' => $deviceStats['unknown'] ?? 0,
-                'open_alerts' => 0,
+                'open_alerts' => Alert::query()->where('status', 'open')->count(),
                 'avg_cpu' => $latestMetrics?->avg_cpu !== null ? round((float) $latestMetrics->avg_cpu, 1).'%' : null,
                 'avg_memory' => $latestMetrics?->avg_memory !== null ? round((float) $latestMetrics->avg_memory, 1).'%' : null,
                 'avg_temperature' => $latestMetrics?->avg_temperature !== null ? round((float) $latestMetrics->avg_temperature, 1).'°C' : null,
@@ -53,8 +54,8 @@ class DashboardService
                 'cpu' => $latestMetrics?->avg_cpu !== null ? 'Average over last hour' : 'Will appear after first successful poll',
                 'memory' => $latestMetrics?->avg_memory !== null ? 'Average over last hour' : 'Will appear after first successful poll',
                 'temperature' => 'Vendor-specific; not all devices expose this',
-                'bandwidth' => 'Derived interface counters arrive with charts next',
-                'alerts' => 'Alert engine evaluation comes next',
+                'bandwidth' => 'See device Overview charts after marking uplinks',
+                'alerts' => 'From live poll threshold evaluation',
             ],
         ];
     }

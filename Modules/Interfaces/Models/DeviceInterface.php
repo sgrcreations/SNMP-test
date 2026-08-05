@@ -23,6 +23,15 @@ class DeviceInterface extends Model
         'tx_bytes',
         'errors',
         'utilization',
+        'is_uplink',
+        'port_role',
+        'rx_bps',
+        'tx_bps',
+        'rx_power_dbm',
+        'tx_power_dbm',
+        'temperature',
+        'onu_online',
+        'onu_total',
         'last_polled_at',
     ];
 
@@ -33,6 +42,12 @@ class DeviceInterface extends Model
             'speed' => 'integer',
             'errors' => 'integer',
             'utilization' => 'float',
+            'is_uplink' => 'boolean',
+            'rx_power_dbm' => 'float',
+            'tx_power_dbm' => 'float',
+            'temperature' => 'float',
+            'onu_online' => 'integer',
+            'onu_total' => 'integer',
             'last_polled_at' => 'datetime',
         ];
     }
@@ -45,5 +60,22 @@ class DeviceInterface extends Model
     public function metrics(): HasMany
     {
         return $this->hasMany(InterfaceMetric::class);
+    }
+
+    public function speedLabel(): string
+    {
+        if (! $this->speed) {
+            return '—';
+        }
+
+        if ($this->speed >= 1_000_000_000) {
+            return round($this->speed / 1_000_000_000).'G';
+        }
+
+        if ($this->speed >= 1_000_000) {
+            return round($this->speed / 1_000_000).'M';
+        }
+
+        return (string) $this->speed;
     }
 }

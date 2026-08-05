@@ -1,6 +1,7 @@
 @props([
     'device' => null,
     'vendors',
+    'deviceTypes' => [],
     'snmpVersions',
     'authProtocols',
     'privProtocols',
@@ -32,6 +33,17 @@
                     </select>
                 </div>
                 <div>
+                    <label class="mb-1.5 block text-sm font-semibold text-slate-700">Device Type</label>
+                    <select name="device_type" class="sgr-input">
+                        @foreach($deviceTypes as $value => $label)
+                            <option value="{{ $value }}" @selected(old('device_type', $device?->device_type?->value ?? 'generic') === $value)>{{ $label }}</option>
+                        @endforeach
+                    </select>
+                    <p class="mt-1.5 text-xs text-slate-400">
+                        Set to <strong>OLT</strong> for MA5800/GPON devices to unlock Command Center, PON Ports, ONUs and Network Tree.
+                    </p>
+                </div>
+                <div>
                     <label class="mb-1.5 block text-sm font-semibold text-slate-700">Model</label>
                     <input name="model" value="{{ old('model', $device?->model) }}" class="sgr-input">
                 </div>
@@ -51,9 +63,22 @@
                     <label class="mb-1.5 block text-sm font-semibold text-slate-700">Location</label>
                     <input name="location" value="{{ old('location', $device?->location) }}" class="sgr-input">
                 </div>
+                <div>
+                    <label class="mb-1.5 block text-sm font-semibold text-slate-700">Area</label>
+                    <input name="area" value="{{ old('area', $device?->area) }}" class="sgr-input" placeholder="e.g. AMBUR, VELLORE">
+                </div>
+                <div>
+                    <label class="mb-1.5 block text-sm font-semibold text-slate-700">Latitude</label>
+                    <input type="number" step="any" name="latitude" value="{{ old('latitude', $device?->latitude) }}" class="sgr-input" placeholder="12.9165">
+                </div>
+                <div>
+                    <label class="mb-1.5 block text-sm font-semibold text-slate-700">Longitude</label>
+                    <input type="number" step="any" name="longitude" value="{{ old('longitude', $device?->longitude) }}" class="sgr-input" placeholder="79.1325">
+                </div>
                 <div class="sm:col-span-2">
                     <label class="mb-1.5 block text-sm font-semibold text-slate-700">Description</label>
                     <textarea name="description" rows="3" class="sgr-input">{{ old('description', $device?->description) }}</textarea>
+                    <p class="mt-1.5 text-xs text-slate-400">Latitude and longitude place this device on the Network Map (real coords only).</p>
                 </div>
             </div>
         </section>
