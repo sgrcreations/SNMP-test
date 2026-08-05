@@ -67,8 +67,11 @@ class DeviceController
     {
         abort_unless(auth()->user()?->can('devices.view'), 403);
 
+        $device->load(['interfaces' => fn ($query) => $query->orderBy('if_index')->limit(20)]);
+
         return view('devices::show', [
             'device' => $device,
+            'latestMetric' => $device->metrics()->latest('recorded_at')->first(),
         ]);
     }
 

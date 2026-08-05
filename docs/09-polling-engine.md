@@ -1,29 +1,67 @@
 # 09 — Polling Engine
 
-## Design Goals
+## How it works (live)
 
-- Never block the web UI
-- Honor per-device `polling_interval`
-- Support global enable/disable via Settings (`polling_enabled`)
-- Failures recorded without stopping the schedule batch
+1. Laravel Scheduler runs `devices:poll` every minute
+2. Command selects **active** devices that are due (`last_polled_at` + `polling_interval`)
+3. Each device is dispatched as `PollDeviceJob` (queued)
+4. Job calls `DevicePollService` → `SNMPService` (FreeDSx)
+5. Results are stored in:
+   - `device_metrics`
+   - `device_interfaces`
+   - `interface_metrics`
+6. Device `reachability`, `last_polled_at`, and `last_seen_at` are updated
 
-## Planned Flow (Phase 2)
+## What you must run in terminals
 
-1. `routes/console.php` schedules `devices:poll` every minute
-2. Command selects active devices due for poll
-3. Each device dispatched as `PollDeviceJob`
-4. Job uses `SNMPService` + vendor mapper
-5. Metrics repositories store samples
-6. Device `reachability`, `last_polled_at`, `last_seen_at` updated
-7. Alert evaluator consumes fresh samples
+Keep these processes running while developing/operating:
 
-## Settings Used
+```bash
+# Terminal 1 — web app
+php artisan serve
 
-- `polling_enabled`
-- `default_polling_interval`
-- `snmp_timeout`
-- `snmp_retries`
+# Terminal 2 — queue worker (required for async polls)
+php artisan queue:work --tries=2 --timeout=90
 
-## Phase 1 Status
+# Terminal 3 — scheduler (runs devices:poll every minute)
+php artisan schedule:work
+```
 
-Scaffold only. Queue tables and scheduler are available; polling command/jobs arrive in Phase 2.
+Or use the bundled Composer script:
+
+```bash
+composer run dev
+```
+
+That starts server + queue + logs + Vite together. You still need the scheduler:
+
+```bash
+php artisan schedule:work
+```
+
+## Manual one-shot poll
+
+```bash
+# Queue jobs for due devices
+php artisan devices:poll
+
+# Poll inline (no queue worker needed)
+php artisan devices:poll --sync
+
+# Poll one device
+php artisan devices:poll --sync --device=1
+```
+
+## Settings
+
+- `polling_enabled` must be **Enabled** in Settings
+- Per-device `polling_interval` (seconds) controls due-time
+- `snmp_timeout` / `snmp_retries` control FreeDSx timeouts
+
+## Reachability
+
+Private LAN devices only work if this Mac/server can UDP-reach them (same network or VPN).
+
+## Logs
+
+SNMP and polling errors: `storage/logs/snmp-*.log`

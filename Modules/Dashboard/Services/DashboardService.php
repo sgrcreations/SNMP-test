@@ -2,7 +2,9 @@
 
 namespace Modules\Dashboard\Services;
 
+use Modules\Devices\Models\Device;
 use Modules\Devices\Repositories\Contracts\DeviceRepositoryInterface;
+use Modules\Metrics\Models\DeviceMetric;
 use Modules\Settings\Services\SettingService;
 
 class DashboardService
@@ -22,8 +24,14 @@ class DashboardService
             $this->devices->countByReachability(),
         );
 
-        $recentDevices = $this->devices
-            ->search([], 5);
+        $recentDevices = $this->devices->search([], 5);
+
+        $latestMetrics = DeviceMetric::query()
+            ->selectRaw('AVG(cpu) as avg_cpu, AVG(memory) as avg_memory, AVG(temperature) as avg_temperature')
+            ->where('recorded_at', '>=', now()->subHour())
+            ->first();
+
+        $lastPoll = Device::query()->max('last_polled_at');
 
         return [
             'stats' => [
@@ -33,20 +41,20 @@ class DashboardService
                 'offline' => $deviceStats['offline'] ?? 0,
                 'unknown' => $deviceStats['unknown'] ?? 0,
                 'open_alerts' => 0,
-                'avg_cpu' => null,
-                'avg_memory' => null,
-                'avg_temperature' => null,
+                'avg_cpu' => $latestMetrics?->avg_cpu !== null ? round((float) $latestMetrics->avg_cpu, 1).'%' : null,
+                'avg_memory' => $latestMetrics?->avg_memory !== null ? round((float) $latestMetrics->avg_memory, 1).'%' : null,
+                'avg_temperature' => $latestMetrics?->avg_temperature !== null ? round((float) $latestMetrics->avg_temperature, 1).'°C' : null,
                 'bandwidth_mbps' => null,
-                'last_poll' => null,
+                'last_poll' => $lastPoll ? \Illuminate\Support\Carbon::parse($lastPoll)->diffForHumans() : null,
             ],
             'recent_devices' => $recentDevices,
             'polling_enabled' => (bool) $this->settings->get('polling_enabled', true),
             'placeholders' => [
-                'cpu' => 'Available after Phase 2 polling',
-                'memory' => 'Available after Phase 2 polling',
-                'temperature' => 'Available after Phase 2 polling',
-                'bandwidth' => 'Available after Phase 2 metrics',
-                'alerts' => 'Available after Phase 2 alert engine',
+                'cpu' => $latestMetrics?->avg_cpu !== null ? 'Average over last hour' : 'Will appear after first successful poll',
+                'memory' => $latestMetrics?->avg_memory !== null ? 'Average over last hour' : 'Will appear after first successful poll',
+                'temperature' => 'Vendor-specific; not all devices expose this',
+                'bandwidth' => 'Derived interface counters arrive with charts next',
+                'alerts' => 'Alert engine evaluation comes next',
             ],
         ];
     }

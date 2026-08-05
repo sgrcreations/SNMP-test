@@ -11,8 +11,11 @@ use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Modules\Devices\Database\Factories\DeviceFactory;
+use Modules\Interfaces\Models\DeviceInterface;
+use Modules\Metrics\Models\DeviceMetric;
 
 class Device extends Model
 {
@@ -77,6 +80,16 @@ class Device extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function interfaces(): HasMany
+    {
+        return $this->hasMany(DeviceInterface::class);
+    }
+
+    public function metrics(): HasMany
+    {
+        return $this->hasMany(DeviceMetric::class);
     }
 
     public function isSnmpV3(): bool

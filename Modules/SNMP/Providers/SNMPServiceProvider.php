@@ -3,17 +3,26 @@
 namespace Modules\SNMP\Providers;
 
 use Illuminate\Support\ServiceProvider;
+use Modules\SNMP\Console\PollDevicesCommand;
+use Modules\SNMP\Services\DevicePollService;
+use Modules\SNMP\Services\SnmpClientFactory;
 use Modules\SNMP\Services\SNMPService;
 
 class SNMPServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        $this->app->singleton(SnmpClientFactory::class);
         $this->app->singleton(SNMPService::class);
+        $this->app->singleton(DevicePollService::class);
     }
 
     public function boot(): void
     {
-        // Phase 2: load OID explorer routes/views here.
+        if ($this->app->runningInConsole()) {
+            $this->commands([
+                PollDevicesCommand::class,
+            ]);
+        }
     }
 }

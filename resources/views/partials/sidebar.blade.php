@@ -30,6 +30,10 @@
                 <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M5 5h14a1 1 0 011 1v4H4V6a1 1 0 011-1zm-1 7h16v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6z"/></svg>
                 <span>Devices</span>
             </a>
+            <a href="{{ route('interfaces.index') }}" @click="sidebarOpen = false" class="sgr-nav-link {{ request()->routeIs('interfaces.*') ? 'sgr-nav-link-active' : '' }}">
+                <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4 6h16M4 12h10M4 18h16"/></svg>
+                <span>Interfaces</span>
+            </a>
         @endcan
 
         @can('settings.view')
