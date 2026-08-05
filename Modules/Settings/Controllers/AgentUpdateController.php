@@ -6,6 +6,8 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
 use Modules\Authentication\Services\AuditLogService;
 use Modules\Devices\Services\DeviceService;
+use Modules\Settings\Requests\PublishAgentReleaseRequest;
+use Modules\Settings\Services\AgentReleasePublisher;
 use Modules\Settings\Services\SnmpAgentClient;
 use Throwable;
 
@@ -14,6 +16,7 @@ class AgentUpdateController
     public function __construct(
         private readonly SnmpAgentClient $agent,
         private readonly AuditLogService $auditLogs,
+        private readonly AgentReleasePublisher $releases,
     ) {}
 
     public function show(): View
@@ -33,12 +36,77 @@ class AgentUpdateController
             }
         }
 
+        $latest = $this->releases->latest('linux', 'amd64');
+        $channelUrl = $latest['manifest_url'] ?? url('/updates/snmp-agent/linux-amd64/manifest.json');
+
         return view('settings::agent', [
             'configured' => $this->agent->configured(),
             'health' => $health,
             'status' => $status,
             'error' => $error,
+            'latestRelease' => $latest,
+            'channelUrl' => $channelUrl,
+            'canPublish' => $this->releases->canPublish(),
         ]);
+    }
+
+    public function publish(PublishAgentReleaseRequest $request): RedirectResponse
+    {
+        try {
+            $result = $this->releases->publish(
+                binary: $request->file('binary'),
+                version: (string) $request->validated('version'),
+                notes: (string) ($request->validated('notes') ?? ''),
+                os: (string) ($request->validated('os') ?? 'linux'),
+                arch: (string) ($request->validated('arch') ?? 'amd64'),
+            );
+
+            $this->auditLogs->log(
+                event: 'agent.release_published',
+                newValues: $result,
+                description: 'Published snmp-agent release '.$result['version'],
+            );
+
+            // Point the on-prem agent at this Laravel channel when connected.
+            if ($this->agent->configured()) {
+                try {
+                    $this->agent->setUpdateChannel($result['manifest_url']);
+                } catch (Throwable $e) {
+                    return redirect()
+                        ->route('settings.agent')
+                        ->with('success', 'Published '.$result['version'].'. Set agent channel manually: '.$result['manifest_url'])
+                        ->with('error', 'Could not push channel URL to agent: '.$e->getMessage());
+                }
+            }
+
+            return redirect()
+                ->route('settings.agent')
+                ->with('success', 'Published '.$result['version'].'. Use Check for updates → Apply update on the agent.');
+        } catch (Throwable $e) {
+            return redirect()
+                ->route('settings.agent')
+                ->with('error', $e->getMessage());
+        }
+    }
+
+    public function pushChannel(): RedirectResponse
+    {
+        abort_unless(auth()->user()?->can('settings.update'), 403);
+
+        $latest = $this->releases->latest('linux', 'amd64');
+        $url = $latest['manifest_url'] ?? url('/updates/snmp-agent/linux-amd64/manifest.json');
+
+        try {
+            $this->agent->setUpdateChannel($url);
+
+            return redirect()
+                ->route('settings.agent')
+                ->with('success', 'Agent channel URL set to '.$url);
+        } catch (Throwable $e) {
+            return redirect()
+                ->route('settings.agent')
+                ->with('error', $e->getMessage());
+        }
     }
 
     public function check(): RedirectResponse

@@ -52,6 +52,19 @@ class SnmpAgentClient
     }
 
     /**
+     * Persist channel URL on the agent (used after publishing a release from Laravel).
+     *
+     * @return array<string, mixed>
+     */
+    public function setUpdateChannel(string $channelUrl): array
+    {
+        return $this->request('post', '/v1/updates/channel', body: [
+            'channel_url' => $channelUrl,
+            'enabled' => true,
+        ]);
+    }
+
+    /**
      * Create or update a device on the agent using Laravel device id as external_id.
      *
      * @return array<string, mixed>
