@@ -98,6 +98,85 @@ class SnmpAgentClient
         ];
     }
 
+    /**
+     * Poll on the agent and return a Laravel-shaped traffic snapshot.
+     *
+     * @return array{
+     *   cpu: ?float,
+     *   memory: ?float,
+     *   temperature: null,
+     *   rx_bytes: string,
+     *   tx_bytes: string,
+     *   uptime: ?string,
+     *   hostname: ?string,
+     *   location: ?string,
+     *   description: ?string,
+     *   interfaces: list<array<string, mixed>>
+     * }
+     */
+    public function pollDeviceSnapshot(Device $device): array
+    {
+        $upserted = $this->upsertDevice($device);
+        $agentId = (int) ($upserted['id'] ?? 0);
+        if ($agentId < 1) {
+            throw new RuntimeException('Agent upsert did not return a device id.');
+        }
+
+        /** @var array<string, mixed> $polled */
+        $polled = $this->request('post', '/v1/devices/'.$agentId.'/poll', timeout: 90);
+        if (empty($polled['ok'])) {
+            throw new RuntimeException((string) ($polled['error'] ?? 'Agent poll failed'));
+        }
+
+        /** @var array<string, mixed> $agentDevice */
+        $agentDevice = is_array($polled['device'] ?? null) ? $polled['device'] : [];
+        if (($agentDevice['reachability'] ?? '') === 'offline') {
+            throw new RuntimeException('Agent reported device offline (SNMP failed on agent host)');
+        }
+
+        /** @var array<string, mixed> $ifacePayload */
+        $ifacePayload = $this->request('get', '/v1/devices/'.$agentId.'/interfaces');
+        $rows = is_array($ifacePayload['data'] ?? null) ? $ifacePayload['data'] : [];
+
+        $interfaces = [];
+        $rxTotal = '0';
+        $txTotal = '0';
+        foreach ($rows as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+            $rx = (string) ($row['rx_bytes'] ?? 0);
+            $tx = (string) ($row['tx_bytes'] ?? 0);
+            $rxTotal = $this->bcAdd($rxTotal, $rx);
+            $txTotal = $this->bcAdd($txTotal, $tx);
+            $interfaces[] = [
+                'if_index' => (int) ($row['if_index'] ?? 0),
+                'name' => (string) ($row['name'] ?? ''),
+                'description' => (string) ($row['description'] ?? $row['alias'] ?? ''),
+                'oper_status' => (string) ($row['oper_status'] ?? 'unknown'),
+                'speed' => (int) ($row['speed'] ?? 0),
+                'rx_bytes' => $rx,
+                'tx_bytes' => $tx,
+                'errors' => (int) ($row['errors'] ?? 0),
+            ];
+        }
+
+        $uptime = $agentDevice['sys_uptime'] ?? null;
+
+        return [
+            'cpu' => isset($agentDevice['last_cpu']) ? (float) $agentDevice['last_cpu'] : null,
+            'memory' => isset($agentDevice['last_memory']) ? (float) $agentDevice['last_memory'] : null,
+            'temperature' => isset($agentDevice['last_temperature']) ? (float) $agentDevice['last_temperature'] : null,
+            'rx_bytes' => $rxTotal,
+            'tx_bytes' => $txTotal,
+            'uptime' => $uptime !== null ? (string) $uptime : null,
+            'hostname' => isset($agentDevice['hostname']) ? (string) $agentDevice['hostname'] : null,
+            'location' => isset($agentDevice['location']) ? (string) $agentDevice['location'] : null,
+            'description' => isset($agentDevice['description']) ? (string) $agentDevice['description'] : null,
+            'interfaces' => $interfaces,
+        ];
+    }
+
     public function deleteDeviceByExternalId(int|string $externalId): void
     {
         $this->request('delete', '/v1/devices/by-external/'.$externalId, expectJson: false);
@@ -170,13 +249,14 @@ class SnmpAgentClient
         bool $auth = true,
         ?array $body = null,
         bool $expectJson = true,
+        int $timeout = 30,
     ): array {
         if (! $this->configured()) {
             throw new RuntimeException('Configure snmp_agent_url and snmp_agent_api_key in Settings first.');
         }
 
         try {
-            $pending = $this->client($auth);
+            $pending = $this->client($auth, $timeout);
             $url = $this->url($path);
             $response = match ($method) {
                 'get' => $pending->get($url),
@@ -216,9 +296,9 @@ class SnmpAgentClient
         return $json;
     }
 
-    private function client(bool $auth): PendingRequest
+    private function client(bool $auth, int $timeout = 30): PendingRequest
     {
-        $pending = Http::timeout(30)
+        $pending = Http::timeout($timeout)
             ->acceptJson()
             ->withHeaders(['User-Agent' => 'SGR-SNMP-Monitor/1.0']);
 
@@ -227,6 +307,15 @@ class SnmpAgentClient
         }
 
         return $pending;
+    }
+
+    private function bcAdd(string $a, string $b): string
+    {
+        if (function_exists('bcadd')) {
+            return bcadd($a, $b, 0);
+        }
+
+        return (string) ((int) $a + (int) $b);
     }
 
     private function url(string $path): string

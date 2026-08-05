@@ -18,6 +18,7 @@ use Modules\Metrics\Models\InterfaceMetric;
 use Modules\Metrics\Models\PingSample;
 use Modules\Metrics\Models\PollLog;
 use Modules\Settings\Services\SettingService;
+use Modules\Settings\Services\SnmpAgentClient;
 use Throwable;
 
 class DevicePollService
@@ -29,6 +30,7 @@ class DevicePollService
         private readonly HuaweiOltCollector $oltCollector,
         private readonly PingProbeService $ping,
         private readonly VlanCollector $vlans,
+        private readonly SnmpAgentClient $agent,
     ) {}
 
     /**
@@ -40,21 +42,28 @@ class DevicePollService
         $startedMs = (int) floor(microtime(true) * 1000);
         $previousReachability = $device->reachability?->value;
         $pingSample = null;
+        $viaAgent = $this->agent->configured();
 
         try {
             $pingSample = $this->ping->probe($device);
-            $snapshot = $this->snmp->readTrafficCounters($device);
+            $snapshot = $viaAgent
+                ? $this->agent->pollDeviceSnapshot($device)
+                : $this->snmp->readTrafficCounters($device);
             $detectedType = DeviceType::detectFromDescription(
                 $snapshot['description'] ?? null,
                 $device->vendor?->value
             );
 
+            // OLT / VLAN collectors still use direct PHP SNMP from the web host.
+            // Skip them when polling through the on-prem agent.
             $oltData = ['pon_ports' => [], 'onus' => []];
-            if ($detectedType === DeviceType::Olt || $device->device_type === DeviceType::Olt) {
-                $oltData = $this->oltCollector->collect($device, $snapshot['interfaces']);
+            $vlanRows = [];
+            if (! $viaAgent) {
+                if ($detectedType === DeviceType::Olt || $device->device_type === DeviceType::Olt) {
+                    $oltData = $this->oltCollector->collect($device, $snapshot['interfaces']);
+                }
+                $vlanRows = $this->vlans->collect($device, $snapshot['interfaces']);
             }
-
-            $vlanRows = $this->vlans->collect($device, $snapshot['interfaces']);
             $onuOnline = collect($oltData['onus'])->where('status', 'online')->count();
             $onuTotal = count($oltData['onus']);
             if ($onuTotal === 0) {
@@ -166,13 +175,14 @@ class DevicePollService
                 'success' => true,
                 'duration_ms' => max(0, $duration),
                 'interfaces_count' => count($snapshot['interfaces']),
-                'message' => 'Polled successfully',
+                'message' => $viaAgent ? 'Polled successfully via snmp-agent' : 'Polled successfully',
                 'meta' => [
                     'cpu' => $snapshot['cpu'],
                     'memory' => $snapshot['memory'],
                     'onus' => count($oltData['onus']),
                     'vlans' => count($vlanRows),
                     'latency_ms' => $pingSample['latency_ms'],
+                    'via' => $viaAgent ? 'snmp-agent' : 'php-local',
                 ],
                 'started_at' => $startedAt,
                 'finished_at' => now(),
