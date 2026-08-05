@@ -61,6 +61,43 @@ class SnmpAgentClient
         return $this->request('post', '/v1/devices', body: $this->devicePayload($device));
     }
 
+    /**
+     * Sync device to agent then run SNMP test on the agent host.
+     *
+     * @return array{connected: bool, message: string, system: ?array<string, mixed>, interfaces_count: int}
+     */
+    public function testDevice(Device $device): array
+    {
+        $upserted = $this->upsertDevice($device);
+        $agentId = (int) ($upserted['id'] ?? 0);
+        if ($agentId < 1) {
+            throw new RuntimeException('Agent upsert did not return a device id.');
+        }
+
+        /** @var array<string, mixed> $raw */
+        $raw = $this->request('post', '/v1/devices/'.$agentId.'/test');
+
+        $system = null;
+        if (is_array($raw['system'] ?? null)) {
+            /** @var array<string, mixed> $sys */
+            $sys = $raw['system'];
+            $system = [
+                'hostname' => (string) ($sys['name'] ?? $sys['hostname'] ?? ''),
+                'description' => (string) ($sys['description'] ?? ''),
+                'uptime' => (int) ($sys['uptime'] ?? 0),
+                'location' => (string) ($sys['location'] ?? ''),
+                'contact' => (string) ($sys['contact'] ?? ''),
+            ];
+        }
+
+        return [
+            'connected' => (bool) ($raw['connected'] ?? false),
+            'message' => (string) ($raw['message'] ?? 'Unknown agent response'),
+            'system' => $system,
+            'interfaces_count' => (int) ($raw['interfaces_count'] ?? 0),
+        ];
+    }
+
     public function deleteDeviceByExternalId(int|string $externalId): void
     {
         $this->request('delete', '/v1/devices/by-external/'.$externalId, expectJson: false);
