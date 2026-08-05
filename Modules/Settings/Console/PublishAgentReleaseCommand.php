@@ -15,14 +15,13 @@ class PublishAgentReleaseCommand extends Command
         {binary : Path to snmpd-linux-amd64 (or arm64) binary}
         {--arch=amd64 : amd64 or arm64}
         {--notes= : Release notes}
+        {--base-url= : Public site URL, e.g. https://isp.sgrcreations.com}
         {--push-channel : Push Laravel channel URL to the configured agent}';
 
     protected $description = 'Sign and publish an snmp-agent binary to the Laravel update channel (for git/CI deploys).';
 
     public function handle(AgentReleasePublisher $publisher, SnmpAgentClient $agent): int
     {
-        $this->warnIfLocalAppUrl();
-
         $path = (string) $this->argument('binary');
         if (! is_file($path)) {
             $this->error("Binary not found: {$path}");
@@ -46,6 +45,7 @@ class PublishAgentReleaseCommand extends Command
                 notes: (string) ($this->option('notes') ?: ''),
                 os: 'linux',
                 arch: (string) $this->option('arch'),
+                baseUrl: $this->option('base-url') ? (string) $this->option('base-url') : null,
             );
         } catch (Throwable $e) {
             $this->error($e->getMessage());
@@ -70,18 +70,10 @@ class PublishAgentReleaseCommand extends Command
         return self::SUCCESS;
     }
 
-    private function warnIfLocalAppUrl(): void
-    {
-        $appUrl = (string) config('app.url');
-        if (str_contains($appUrl, 'localhost') || str_contains($appUrl, '127.0.0.1')) {
-            $this->warn("APP_URL is {$appUrl} — manifest URLs will point there.");
-            $this->warn('Run this on the production Laravel host (isp.sgrcreations.com), not your Mac.');
-        }
-    }
-
     private function printUsageExample(): void
     {
-        $this->line('Run on the production Laravel host with both arguments:');
-        $this->line('  php artisan agent:publish-release 0.1.3 /path/to/snmpd-linux-amd64 --push-channel');
+        $this->line('Example:');
+        $this->line('  php artisan agent:publish-release 0.1.3 ~/snmpd-linux-amd64 \\');
+        $this->line('    --base-url=https://isp.sgrcreations.com --push-channel');
     }
 }

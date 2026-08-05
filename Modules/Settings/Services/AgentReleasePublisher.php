@@ -18,6 +18,7 @@ class AgentReleasePublisher
         string $notes = '',
         string $os = 'linux',
         string $arch = 'amd64',
+        ?string $baseUrl = null,
     ): array {
         $version = ltrim(trim($version), 'vV');
         if ($version === '' || ! preg_match('/^\d+\.\d+\.\d+$/', $version)) {
@@ -47,7 +48,9 @@ class AgentReleasePublisher
             $privateKey,
         );
 
-        $binaryUrl = url('/updates/snmp-agent/'.$channel.'/'.$binaryName);
+        $publicBase = $this->resolvePublicBase($baseUrl);
+        $binaryUrl = $publicBase.'/updates/snmp-agent/'.$channel.'/'.$binaryName;
+        $manifestUrl = $publicBase.'/updates/snmp-agent/'.$channel.'/manifest.json';
         $manifest = [
             'name' => 'snmpd',
             'version' => $version,
@@ -72,7 +75,7 @@ class AgentReleasePublisher
             $relativeDir.'/latest.json',
             json_encode([
                 'version' => $version,
-                'manifest_url' => url('/updates/snmp-agent/'.$channel.'/manifest.json'),
+                'manifest_url' => $manifestUrl,
                 'published_at' => now()->utc()->toIso8601String(),
             ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)."\n"
         );
@@ -80,10 +83,23 @@ class AgentReleasePublisher
         return [
             'version' => $version,
             'channel' => $channel,
-            'manifest_url' => url('/updates/snmp-agent/'.$channel.'/manifest.json'),
+            'manifest_url' => $manifestUrl,
             'binary_url' => $binaryUrl,
             'sha256' => $sha256,
         ];
+    }
+
+    private function resolvePublicBase(?string $baseUrl): string
+    {
+        $base = rtrim((string) ($baseUrl ?: config('app.url')), '/');
+        if ($base === '' || str_contains($base, 'localhost') || str_contains($base, '127.0.0.1')) {
+            throw new RuntimeException(
+                'APP_URL is localhost. Fix .env APP_URL=https://isp.sgrcreations.com (then php artisan config:clear), '.
+                'or pass --base-url=https://isp.sgrcreations.com'
+            );
+        }
+
+        return $base;
     }
 
     /**
