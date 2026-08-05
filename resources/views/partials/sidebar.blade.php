@@ -42,9 +42,13 @@
 
         @can('settings.view')
             <div class="px-3 pb-2 pt-5 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">System</div>
-            <a href="{{ route('settings.edit') }}" @click="sidebarOpen = false" class="sgr-nav-link {{ request()->routeIs('settings.*') ? 'sgr-nav-link-active' : '' }}">
+            <a href="{{ route('settings.edit') }}" @click="sidebarOpen = false" class="sgr-nav-link {{ request()->routeIs('settings.edit') || request()->routeIs('settings.update') ? 'sgr-nav-link-active' : '' }}">
                 <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M10.325 4.317a1 1 0 011.35-.936l.094.04a1 1 0 00.74 0l.094-.04a1 1 0 011.35.936l.04.094a1 1 0 00.632.632l.094.04a1 1 0 01.65 1.212l-.04.1a1 1 0 000 .74l.04.094a1 1 0 01-.65 1.212l-.094.04a1 1 0 00-.632.632l-.04.094a1 1 0 01-1.35.936l-.094-.04a1 1 0 00-.74 0l-.094.04a1 1 0 01-1.35-.936l-.04-.094a1 1 0 00-.632-.632l-.094-.04a1 1 0 01-.65-1.212l.04-.094a1 1 0 000-.74l-.04-.1a1 1 0 01.65-1.212l.094-.04a1 1 0 00.632-.632l.04-.094z"/><circle cx="12" cy="12" r="3" stroke-width="1.8"/></svg>
                 <span>Settings</span>
+            </a>
+            <a href="{{ route('settings.agent') }}" @click="sidebarOpen = false" class="sgr-nav-link {{ request()->routeIs('settings.agent*') ? 'sgr-nav-link-active' : '' }}">
+                <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                <span>Agent Updates</span>
             </a>
         @endcan
 

@@ -25,6 +25,8 @@ class UpdateSettingsRequest extends FormRequest
             'settings.bandwidth_threshold' => ['nullable', 'integer', 'min:1', 'max:100'],
             'settings.app_timezone' => ['nullable', 'timezone'],
             'settings.items_per_page' => ['nullable', 'integer', 'min:5', 'max:100'],
+            'settings.snmp_agent_url' => ['nullable', 'string', 'max:255'],
+            'settings.snmp_agent_api_key' => ['nullable', 'string', 'max:255'],
         ];
     }
 }

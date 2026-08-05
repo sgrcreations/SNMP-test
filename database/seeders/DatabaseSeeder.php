@@ -60,7 +60,7 @@ class DatabaseSeeder extends Seeder
         ]);
 
         $adminUser = User::query()->updateOrCreate(
-            ['email' => 'admin@snmpmonitor.test'],
+            ['email' => 'admin@sgrcreations.test'],
             [
                 'name' => 'SNMP Admin',
                 'password' => Hash::make('password'),
@@ -90,12 +90,21 @@ class DatabaseSeeder extends Seeder
             ['group' => 'alerts', 'key' => 'bandwidth_threshold', 'value' => '80', 'type' => 'integer', 'label' => 'Bandwidth Threshold (%)', 'description' => 'Raise an alert when interface utilization exceeds this percent.'],
             ['group' => 'general', 'key' => 'app_timezone', 'value' => 'UTC', 'type' => 'string', 'label' => 'Application Timezone', 'description' => 'Timezone used for charts and scheduling display.'],
             ['group' => 'general', 'key' => 'items_per_page', 'value' => '15', 'type' => 'integer', 'label' => 'Items Per Page', 'description' => 'Default pagination size for tables.'],
+            ['group' => 'agent', 'key' => 'snmp_agent_url', 'value' => 'http://127.0.0.1:9080', 'type' => 'string', 'label' => 'SNMP Agent URL', 'description' => 'Base URL of the on-prem Go snmp-agent (e.g. http://10.0.0.50:9080).'],
+            ['group' => 'agent', 'key' => 'snmp_agent_api_key', 'value' => '', 'type' => 'string', 'label' => 'SNMP Agent API Key', 'description' => 'Shared API key matching the agent config api_key. Used server-side only.', 'is_encrypted' => true],
         ];
 
         foreach ($defaults as $setting) {
             Setting::query()->updateOrCreate(
                 ['key' => $setting['key']],
-                $setting + ['is_encrypted' => false]
+                [
+                    'group' => $setting['group'],
+                    'value' => $setting['value'],
+                    'type' => $setting['type'],
+                    'label' => $setting['label'],
+                    'description' => $setting['description'],
+                    'is_encrypted' => (bool) ($setting['is_encrypted'] ?? false),
+                ]
             );
         }
     }

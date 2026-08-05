@@ -37,6 +37,11 @@ class SettingService
                 continue;
             }
 
+            // Keep existing encrypted secrets when the form leaves the field blank.
+            if ($existing->is_encrypted && ($value === null || $value === '')) {
+                continue;
+            }
+
             $old = $existing->is_encrypted ? '[encrypted]' : $existing->typedValue();
 
             $this->settings->upsert($key, $value, [
