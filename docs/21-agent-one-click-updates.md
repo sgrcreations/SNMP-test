@@ -1,37 +1,53 @@
-# One-click agent updates via Laravel
+# Agent updates (git → Check → Make update)
 
-After the agent is installed once on the VPS, you do **not** SCP for every release.
+No browser file upload. Releases are published by git/CI; operators only click **Check** then **Make update**.
 
-## One-time setup
+## Flow
 
-### 1) Laravel `.env` (control plane)
-
-```env
-SNMP_UPDATE_PRIVATE_KEY_B64=<base64 Ed25519 private key>
+```
+git push / deploy
+   ↓
+scripts/publish-agent-from-git.sh   (or: php artisan agent:publish-release …)
+   ↓
+Laravel hosts signed manifest + binary
+   ↓
+UI: Point agent at channel (once)
+   ↓
+UI: Check for updates → Make update
 ```
 
-Use the same keypair as `snmp-agent/keys/` (public key is already embedded in the agent).
+## One-time
 
-### 2) Deploy Laravel code that includes Agent Updates publish UI.
+1. Laravel `.env`:
+```env
+SNMP_UPDATE_PRIVATE_KEY_B64=<ed25519 private key base64>
+```
+2. Settings → agent URL + API key  
+3. Agent Updates → **Point agent at this Laravel channel**  
+4. Agent binary `0.1.2+` (supports channel API)
 
-### 3) Settings → agent
+## After each agent code change
 
-- `snmp_agent_url` = `http://103.181.33.22:9080`
-- `snmp_agent_api_key` = agent API key
+On the machine that has Laravel + snmp-agent source (or CI):
 
-### 4) Install agent **0.1.2+** once (supports `POST /v1/updates/channel`)
+```bash
+cd /path/to/SNMP
+VERSION=0.1.3 ./scripts/publish-agent-from-git.sh
+```
 
-Then forever use the UI.
+Or explicitly:
 
-## Everyday update flow
+```bash
+cd ../snmp-agent && make release VERSION=0.1.3
+cd ../SNMP
+php artisan agent:publish-release 0.1.3 ../snmp-agent/dist/snmpd-linux-amd64 --push-channel
+```
 
-1. On Mac: `make release VERSION=0.1.3`
-2. Laravel → **Agent Updates** → upload `dist/snmpd-linux-amd64`, version `0.1.3` → **Publish release**
-3. Click **Point agent at Laravel channel** (auto on publish if agent reachable)
-4. **Check for updates** → **Apply update**
+Then in the UI:
 
-Agent downloads from:
+1. **Check for updates**  
+2. **Make update**
+
+## Channel URL
 
 `https://your-laravel-host/updates/snmp-agent/linux-amd64/manifest.json`
-
-Downtime ≈ 2–5 seconds. Failed startups roll back.

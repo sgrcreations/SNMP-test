@@ -12,7 +12,6 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::post('/settings/agent/check', [AgentUpdateController::class, 'check'])->name('settings.agent.check');
     Route::post('/settings/agent/apply', [AgentUpdateController::class, 'apply'])->name('settings.agent.apply');
     Route::post('/settings/agent/sync-devices', [AgentUpdateController::class, 'syncDevices'])->name('settings.agent.sync-devices');
-    Route::post('/settings/agent/publish', [AgentUpdateController::class, 'publish'])->name('settings.agent.publish');
     Route::post('/settings/agent/push-channel', [AgentUpdateController::class, 'pushChannel'])->name('settings.agent.push-channel');
 });
 

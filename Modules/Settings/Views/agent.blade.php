@@ -1,7 +1,7 @@
 <x-monitor-layout
     title="Agent Updates"
     header="Agent Updates"
-    subheader="Publish signed releases, then one-click check & apply on the on-prem agent"
+    subheader="Check and apply on-prem snmp-agent updates"
     :breadcrumbs="[
         ['label' => 'Dashboard', 'url' => route('dashboard')],
         ['label' => 'Settings', 'url' => route('settings.edit')],
@@ -16,10 +16,9 @@
 
     <div class="space-y-6">
         <section class="sgr-card p-5">
-            <h2 class="text-sm font-bold uppercase tracking-[0.14em] text-slate-400">1. Publish release (control plane)</h2>
+            <h2 class="text-sm font-bold uppercase tracking-[0.14em] text-slate-400">Release channel</h2>
             <p class="mt-2 text-sm text-slate-600">
-                Build <code class="rounded bg-slate-100 px-1">snmpd-linux-amd64</code> on your Mac, upload here.
-                Laravel signs it and hosts the update channel. Agents download from this site — no SCP to the VPS.
+                Releases are published by git/CI (<code class="rounded bg-slate-100 px-1">php artisan agent:publish-release</code>), not by uploading in the browser.
             </p>
 
             @if (!empty($latestRelease['version']))
@@ -29,50 +28,15 @@
                 </div>
             @else
                 <div class="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                    No release published yet. Upload a linux/amd64 binary below.
+                    No release on this Laravel channel yet. After git deploy / CI, run
+                    <code class="rounded bg-amber-100 px-1">php artisan agent:publish-release x.y.z /path/to/snmpd-linux-amd64 --push-channel</code>
                 </div>
             @endif
-
-            @can('settings.update')
-                @if ($canPublish)
-                    <form method="POST" action="{{ route('settings.agent.publish') }}" enctype="multipart/form-data" class="mt-5 grid gap-4 md:grid-cols-2">
-                        @csrf
-                        <div>
-                            <label class="mb-1 block text-sm font-semibold text-slate-800" for="version">Version</label>
-                            <input id="version" name="version" type="text" required placeholder="0.1.2" value="{{ old('version') }}" class="sgr-input">
-                        </div>
-                        <div>
-                            <label class="mb-1 block text-sm font-semibold text-slate-800" for="arch">Arch</label>
-                            <select id="arch" name="arch" class="sgr-input">
-                                <option value="amd64" @selected(old('arch', 'amd64') === 'amd64')>linux/amd64</option>
-                                <option value="arm64" @selected(old('arch') === 'arm64')>linux/arm64</option>
-                            </select>
-                            <input type="hidden" name="os" value="linux">
-                        </div>
-                        <div class="md:col-span-2">
-                            <label class="mb-1 block text-sm font-semibold text-slate-800" for="binary">Binary file</label>
-                            <input id="binary" name="binary" type="file" required class="sgr-input">
-                            <p class="mt-1 text-xs text-slate-500">From Mac: <code>make release VERSION=x.y.z</code> → <code>dist/snmpd-linux-amd64</code></p>
-                        </div>
-                        <div class="md:col-span-2">
-                            <label class="mb-1 block text-sm font-semibold text-slate-800" for="notes">Release notes</label>
-                            <input id="notes" name="notes" type="text" value="{{ old('notes') }}" class="sgr-input" placeholder="Optional">
-                        </div>
-                        <div class="md:col-span-2">
-                            <button type="submit" class="sgr-btn-primary">Publish release</button>
-                        </div>
-                    </form>
-                @else
-                    <div class="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
-                        Set <code>SNMP_UPDATE_PRIVATE_KEY_B64</code> in Laravel <code>.env</code> to enable publishing.
-                    </div>
-                @endif
-            @endcan
         </section>
 
         @unless ($configured)
             <section class="sgr-card p-5">
-                <h2 class="text-sm font-bold uppercase tracking-[0.14em] text-slate-400">2. Connect agent</h2>
+                <h2 class="text-sm font-bold uppercase tracking-[0.14em] text-slate-400">Connect agent</h2>
                 <p class="mt-2 text-sm text-slate-600">
                     Set <strong>SNMP Agent URL</strong> and <strong>API Key</strong> under
                     <a href="{{ route('settings.edit') }}" class="font-semibold text-cyan-700 hover:underline">Settings → agent</a>.
@@ -81,7 +45,7 @@
         @else
             <div class="grid gap-6 lg:grid-cols-2">
                 <section class="sgr-card p-5">
-                    <h2 class="text-sm font-bold uppercase tracking-[0.14em] text-slate-400">2. Running agent</h2>
+                    <h2 class="text-sm font-bold uppercase tracking-[0.14em] text-slate-400">Running agent</h2>
                     <dl class="mt-4 space-y-3 text-sm">
                         <div class="flex justify-between gap-4">
                             <dt class="text-slate-500">Health</dt>
@@ -106,26 +70,30 @@
                             </div>
                         @endif
                     </dl>
+
                     @can('settings.update')
                         <form method="POST" action="{{ route('settings.agent.push-channel') }}" class="mt-4">
                             @csrf
                             <button type="submit" class="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
-                                Point agent at Laravel channel
+                                Point agent at this Laravel channel
                             </button>
                         </form>
-                        <p class="mt-2 text-xs text-slate-500 break-all">Target: {{ $channelUrl }}</p>
+                        <p class="mt-2 break-all text-xs text-slate-500">{{ $channelUrl }}</p>
                     @endcan
                 </section>
 
                 <section class="sgr-card p-5">
-                    <h2 class="text-sm font-bold uppercase tracking-[0.14em] text-slate-400">3. One-click update</h2>
+                    <h2 class="text-sm font-bold uppercase tracking-[0.14em] text-slate-400">Update</h2>
                     <p class="mt-2 text-sm text-slate-600">
-                        Agent downloads from Laravel, verifies signature, swaps binary, restarts (≈2–5s downtime).
+                        Check compares agent version to the published channel. Apply downloads, verifies signature, swaps binary, restarts (≈2–5s).
                     </p>
 
                     @if (!empty($status['update_available']))
                         <div class="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
                             Update available: <strong>{{ $status['pending_version'] }}</strong>
+                            @if (!empty($status['pending_notes']))
+                                <p class="mt-1 text-xs">{{ $status['pending_notes'] }}</p>
+                            @endif
                         </div>
                     @endif
 
@@ -147,12 +115,12 @@
                             <form method="POST" action="{{ route('settings.agent.apply') }}" onsubmit="return confirm('Apply update now? Agent will restart briefly.');">
                                 @csrf
                                 <button type="submit" class="rounded-xl border border-cyan-600 bg-white px-4 py-2 text-sm font-semibold text-cyan-700 transition hover:bg-cyan-50">
-                                    Apply update
+                                    Make update
                                 </button>
                             </form>
-                            <form method="POST" action="{{ route('settings.agent.sync-devices') }}" onsubmit="return confirm('Push all Laravel devices to the agent now?');">
+                            <form method="POST" action="{{ route('settings.agent.sync-devices') }}">
                                 @csrf
-                                <button type="submit" class="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
+                                <button type="submit" class="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700">
                                     Sync devices
                                 </button>
                             </form>

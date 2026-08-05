@@ -17,6 +17,12 @@ class SettingsServiceProvider extends ServiceProvider
         $this->loadMigrationsFrom(__DIR__.'/../Database/Migrations');
         $this->loadViewsFrom(__DIR__.'/../Views', 'settings');
 
+        if ($this->app->runningInConsole()) {
+            $this->commands([
+                \Modules\Settings\Console\PublishAgentReleaseCommand::class,
+            ]);
+        }
+
         Route::middleware('web')
             ->group(__DIR__.'/../Routes/web.php');
     }

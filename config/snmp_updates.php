@@ -21,7 +21,7 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Default target when publishing from the UI
+    | Default target OS/arch when publishing (CLI / CI)
     |--------------------------------------------------------------------------
     */
     'default_os' => 'linux',
