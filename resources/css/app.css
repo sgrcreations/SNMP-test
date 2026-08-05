@@ -1,0 +1,16 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+    --brand: #0891b2;
+    --brand-dark: #0e7490;
+}
+
+body {
+    font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+}
+
+[x-cloak] {
+    display: none !important;
+}
