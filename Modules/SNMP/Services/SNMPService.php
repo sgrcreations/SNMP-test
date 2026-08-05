@@ -25,6 +25,8 @@ class SNMPService
 
     private const OID_SYS_LOCATION = '1.3.6.1.2.1.1.6.0';
 
+    private const OID_IF_NUMBER = '1.3.6.1.2.1.2.1.0';
+
     private const OID_IF_DESCR = '1.3.6.1.2.1.2.2.1.2';
 
     private const OID_IF_SPEED = '1.3.6.1.2.1.2.2.1.5';
@@ -58,14 +60,21 @@ class SNMPService
     public function testConnection(Device $device): SnmpConnectionResult
     {
         try {
+            $client = $this->clients->make($device);
             $system = $this->readSystemInformation($device);
-            $interfaces = $this->readInterfaceTable($device);
+
+            $interfacesCount = 0;
+            try {
+                $interfacesCount = (int) ($client->getValue(self::OID_IF_NUMBER) ?? 0);
+            } catch (Throwable) {
+                // Some devices omit ifNumber; still treat as connected.
+            }
 
             return new SnmpConnectionResult(
                 connected: true,
                 message: 'Connected',
                 system: $system,
-                interfacesCount: count($interfaces),
+                interfacesCount: $interfacesCount,
             );
         } catch (Throwable $e) {
             $this->logError($device, 'testConnection', $e);
@@ -250,6 +259,7 @@ class SNMPService
     {
         $rows = [];
         $walk = $client->walk($baseOid);
+        $walk->maxRepetitions(10);
 
         while ($walk->hasOids()) {
             $oid = $walk->next();
